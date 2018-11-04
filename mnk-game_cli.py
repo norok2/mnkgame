@@ -4,8 +4,8 @@ from BoardGravity import BoardGravity
 from GameAiRandom import GameAiRandom
 from GameAiSearchTree import GameAiSearchTree
 
-# board = Board(3, 3, 3)
-board = BoardGravity(4, 5, 3)
+board = Board(3, 3, 3)
+# board = BoardGravity(6, 7, 4)
 
 
 def handle_endgame(text, ask):
@@ -23,7 +23,7 @@ def handle_move(board, coord, is_computer, ask_continue=True):
     if is_computer:
         print('Computer Move is: ', coord)
     board.do_move(coord)
-    if board.winner(board.last_turn) == board.last_turn:
+    if board.winner(board.curr_turn) == board.curr_turn:
         result = handle_endgame(
             'YOU LOST!\n' if is_computer else 'Congratulations! You WIN!\n',
             ask_continue)
@@ -39,8 +39,8 @@ def get_human_move():
     coord = None
     print('Available Moves: ', sorted(board.avail_moves()))
     while not is_valid:
-        coord = ast.literal_eval(input('What is your move? ').strip())
         try:
+            coord = ast.literal_eval(input('What is your move? ').strip())
             is_valid = \
                 board.is_valid_move(coord) and board.is_avail_move(coord)
         except (TypeError, SyntaxError, ValueError):
