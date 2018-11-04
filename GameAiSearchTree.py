@@ -13,17 +13,20 @@ def alphabeta(
     if depth is None:
         depth = board.num_moves_left()
     if turn is None:
-        turn = board.last_turn
+        turn = board.curr_turn
     board_winner = board.winner()
     if depth == 0 or board_winner != board.EMPTY:
         return board.heuristic() if board_winner == board.EMPTY else (
             np.inf if board_winner == turn else -np.inf)
-    best_value = -np.inf if board.last_turn == turn else np.inf
+    best_value = alpha if board.curr_turn == turn else beta
+    print(turn, depth)
     for coord in board.sorted_moves():
         board.do_move(coord)
-        value = alphabeta(board, depth - 1, alpha, beta, next(board.turn))
+        deeper_turn = board.curr_turn \
+            if board.curr_turn != turn else next(copy.copy(board.turn))
+        value = alphabeta(board, depth - 1, alpha, beta, deeper_turn)
         board.undo_move(coord)
-        if board.last_turn == turn:
+        if board.curr_turn == turn:
             best_value = max(best_value, value)
             alpha = max(alpha, best_value)
         else:
@@ -38,20 +41,22 @@ class GameAiSearchTree(GameAi):
     def __init__(self, *args, **kwargs):
         GameAi.__init__(self, *args, **kwargs)
 
-    def get_best_move(self, board=None, randomize=False):
+    def get_best_move(self, board=None, randomize=False, max_depth=12):
         board.heuristic = board.num_moves_left
         best_val = -np.inf
         choices = []
-        for coord in board.sorted_moves():
-            board.do_move(coord)
-            val = alphabeta(copy.deepcopy(board), 9)
-            board.undo_move(coord)
-            if val > best_val:
-                best_val = val
-                choices = [coord]
-            elif val == best_val:
-                choices.append(coord)
-        if randomize:
-            return random.choice(choices)
+        for depth in range(1, max_depth + 1):
+            for coord in board.sorted_moves():
+                board.do_move(coord)
+                val = alphabeta(copy.deepcopy(board), depth)
+                board.undo_move(coord)
+                if val > best_val:
+                    best_val = val
+                    choices = [coord]
+                elif val == best_val and coord not in choices:
+                    choices.append(coord)
+            print(f'Depth: {depth}, Best: {best_val}, Move: {choices}')
+        if randomize and len(choices) > 1:
+            return random.choice(list(choices))
         else:
-            return choices[0]
+            return list(choices)[0]
