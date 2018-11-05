@@ -19,11 +19,12 @@ def handle_endgame(text, ask):
             result = False
     return result
 
+
 def handle_move(board, coord, is_computer, ask_continue=True):
     if is_computer:
         print('Computer Move is: ', coord)
     board.do_move(coord)
-    if board.winner(board.curr_turn) == board.curr_turn:
+    if board.winner(board.turn) == board.turn:
         result = handle_endgame(
             'YOU LOST!\n' if is_computer else 'Congratulations! You WIN!\n',
             ask_continue)
@@ -48,11 +49,11 @@ def get_human_move():
     return coord
 
 
-computer_plays = True
+computer_plays = False
 continue_game = True
 while continue_game:
     print('\n', board, sep='')
-    coord = GameAiSearchTree().get_best_move(board) \
-            if computer_plays else get_human_move()
+    coord = GameAiSearchTree().get_best_move(board, 5.0, max_depth=-1) \
+        if computer_plays else get_human_move()
     continue_game = handle_move(board, coord, computer_plays)
     computer_plays = not computer_plays

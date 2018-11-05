@@ -1,39 +1,91 @@
 import random
-import copy
+import time
 import numpy as np
 from GameAi import GameAi
 
 
-def alphabeta(
+def negamax(
         board,
-        depth=None,
-        alpha=-np.inf,
-        beta=np.inf,
-        turn=None):
-    if depth is None:
-        depth = board.num_moves_left()
-    if turn is None:
-        turn = board.curr_turn
-    board_winner = board.winner()
-    if depth == 0 or board_winner != board.EMPTY:
-        return board.heuristic() if board_winner == board.EMPTY else (
-            np.inf if board_winner == turn else -np.inf)
-    best_value = alpha if board.curr_turn == turn else beta
-    print(turn, depth)
+        depth,
+        max_duration=10.0):
+    clock = time.time()
+    if max_duration < 0:
+        depth = 0
+    if board.winner(board.turn) == board.turn:
+        return -np.inf
+    if depth == 0 or board.is_full():
+        return board.get_score() * (-1) ** board.turn
+    best_value = -np.inf
     for coord in board.sorted_moves():
         board.do_move(coord)
-        deeper_turn = board.curr_turn \
-            if board.curr_turn != turn else next(copy.copy(board.turn))
-        value = alphabeta(board, depth - 1, alpha, beta, deeper_turn)
+        value = -negamax(
+            board, depth - 1, max_duration - (time.time() - clock))
         board.undo_move(coord)
-        if board.curr_turn == turn:
-            best_value = max(best_value, value)
-            alpha = max(alpha, best_value)
-        else:
-            best_value = min(best_value, value)
-            beta = min(beta, best_value)
-        if alpha >= beta:
+        best_value = max(value, best_value)
+    return best_value
+
+
+def negamax_alphabeta(
+        board,
+        depth,
+        max_duration=10.0,
+        alpha=-np.inf,
+        beta=np.inf,
+        soft=True):
+    clock = time.time()
+    if max_duration < 0:
+        depth = 0
+    if board.winner(board.turn) == board.turn:
+        return -np.inf
+    if depth == 0 or board.is_full():
+        return board.get_score()
+    best_value = -np.inf
+    for coord in board.sorted_moves():
+        board.do_move(coord)
+        value = -negamax_alphabeta(
+            board, depth - 1, max_duration - (time.time() - clock),
+            -beta if soft else alpha, -alpha if soft else beta)
+        board.undo_move(coord)
+        best_value = max(value, best_value)
+        if best_value >= beta:
             break
+        if best_value > alpha:
+            alpha = best_value
+    return best_value
+
+
+def negamax_alphabeta_hashing(
+        board,
+        depth,
+        max_duration=10.0,
+        alpha=-np.inf,
+        beta=np.inf,
+        soft=True,
+        hashtable=None):
+    clock = time.time()
+    if max_duration < 0:
+        depth = 0
+    if hashtable is None:
+        hashtable = {}
+    if (board, depth) in hashtable:
+        return hashtable[(board, depth)]
+    if board.winner(board.turn) == board.turn:
+        return -np.inf
+    if depth == 0 or board.is_full():
+        return board.get_score()
+    best_value = -np.inf
+    for coord in board.sorted_moves():
+        board.do_move(coord)
+        value = -negamax_alphabeta_hashing(
+            board, depth - 1,  max_duration - (time.time() - clock),
+            -beta if soft else alpha, -alpha if soft else beta)
+        board.undo_move(coord)
+        best_value = max(value, best_value)
+        if best_value >= beta:
+            break
+        if best_value > alpha:
+            alpha = best_value
+    hashtable[(board, depth)] = best_value
     return best_value
 
 
@@ -41,22 +93,57 @@ class GameAiSearchTree(GameAi):
     def __init__(self, *args, **kwargs):
         GameAi.__init__(self, *args, **kwargs)
 
-    def get_best_move(self, board=None, randomize=False, max_depth=12):
-        board.heuristic = board.num_moves_left
-        best_val = -np.inf
-        choices = []
-        for depth in range(1, max_depth + 1):
+    def get_best_move(
+            self,
+            board=None,
+            max_duration=10.0,
+            method='negamax_alphabeta_hashing',
+            method_kws=None,
+            randomize=False,
+            max_depth=None,
+            verbose=True):
+        if method in globals():
+            func = globals()[method]
+        else:
+            func = None
+        if not callable(func):
+            raise ValueError('Unknown search-tree method.')
+        method_kws = dict(method_kws) if method_kws is not None else {}
+        if not max_depth:
+            max_depth = 0
+        elif max_depth < 0:
+            max_depth = board.num_moves_left() - (max_depth + 1)
+        if verbose:
+            print(
+                f'Method: {method},'
+                f' Min. Depth: {board.win_len},'
+                f' Max. Depth: {max(board.win_len, max_depth)}')
+        clock = time.time()
+        choices = board.sorted_moves()
+        for depth in range(board.win_len, max(board.win_len, max_depth) + 1):
+            best_val = -np.inf
+            new_choices = []
+            begin_time = time.time()
             for coord in board.sorted_moves():
                 board.do_move(coord)
-                val = alphabeta(copy.deepcopy(board), depth)
+                val = -func(
+                    board, depth, max_duration - (time.time() - clock),
+                    **method_kws)
                 board.undo_move(coord)
                 if val > best_val:
                     best_val = val
-                    choices = [coord]
-                elif val == best_val and coord not in choices:
-                    choices.append(coord)
-            print(f'Depth: {depth}, Best: {best_val}, Move: {choices}')
+                    new_choices = [coord]
+                elif val == best_val and coord not in new_choices:
+                    new_choices.append(coord)
+            if verbose:
+                print(
+                    f'Depth: {depth}, Best: {best_val},'
+                    f' Move: {choices}, Time: {time.time() - begin_time:.3f}')
+            if max_duration - (time.time() - clock) > 0:
+                choices = new_choices
+            else:
+                break
         if randomize and len(choices) > 1:
-            return random.choice(list(choices))
+            return random.choice(choices)
         else:
-            return list(choices)[0]
+            return choices[0]

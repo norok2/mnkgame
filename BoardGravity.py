@@ -32,9 +32,9 @@ class BoardGravity(Board):
 
     def do_move(self, coord):
         if coord in self.avail_moves():
-            self.last_turn = next(self.turn)
+            self.turn = self.next_turn()
             empty_row = np.where(self.matrix[:, coord] == self.EMPTY)[0][0]
-            self.matrix[empty_row, coord] = self.last_turn
+            self.matrix[empty_row, coord] = self.turn
             return True
         else:
             return False
@@ -44,7 +44,7 @@ class BoardGravity(Board):
             empty_row = np.where(self.matrix[:, coord] == self.EMPTY)[0]
             empty_row = empty_row[0] if len(empty_row) > 0 else self.rows
             self.matrix[empty_row - 1, coord] = self.EMPTY
-            self.last_turn = next(self.turn)
+            self.turn = self.next_turn()
             return True
         else:
             return False

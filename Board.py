@@ -1,5 +1,4 @@
 import numpy as np
-import itertools
 
 
 class Board:
@@ -19,14 +18,12 @@ class Board:
         self._REPRS = reprs
         self.matrix = None
         self.turn = None
-        self.curr_turn = None
         self.reset()
 
     def reset(self):
         self.matrix = np.full(
             (self.rows, self.cols), self.EMPTY, dtype=np.uint8)
-        self.turn = itertools.cycle(self.TURNS)
-        self.curr_turn = self.EMPTY
+        self.turn = self.TURNS[-1]
 
     def _str_row_range(self):
         return range(self.rows)
@@ -49,9 +46,28 @@ class Board:
                 + '\n' + hor_sep
         return text[:-1]
 
+    def next_turn(self, turn=None):
+        if turn is None:
+            turn = self.turn
+
+        # : more general implementation
+        # if turn in self.TURNS:
+        #     return self.TURNS[self.TURNS.index(turn) + 1 % len(self.TURNS)]
+        # else:
+        #     return self.EMPTY
+
+        # : faster implementation
+        if turn == self.TURNS[0]:
+            return self.TURNS[1]
+        elif turn == self.TURNS[1]:
+            return self.TURNS[0]
+        else:
+            return self.EMPTY
+
+    prev_turn = next_turn
+
     def is_empty(self):
-        # return np.all(self.matrix == 0)
-        return self.curr_turn == self.EMPTY
+        return np.all(self.matrix == self.EMPTY)
 
     def is_valid(self):
         raise abs(
@@ -75,13 +91,13 @@ class Board:
         return sorted(
             self.avail_moves(),
             key=lambda x: (
-                    ((x[0] - self.rows // 2) ** 2
-                    + (x[1] - self.cols // 2) ** 2)))
+                ((x[0] - self.rows // 2) ** 2
+                 + (x[1] - self.cols // 2) ** 2)))
 
     def do_move(self, coord):
         if coord in self.avail_moves():
-            self.curr_turn = next(self.turn)
-            self.matrix[coord] = self.curr_turn
+            self.turn = self.next_turn()
+            self.matrix[coord] = self.turn
             return True
         else:
             return False
@@ -89,7 +105,7 @@ class Board:
     def undo_move(self, coord):
         if self.is_valid_move(coord) and self.matrix[coord] != self.EMPTY:
             self.matrix[coord] = self.EMPTY
-            self.curr_turn = next(self.turn)
+            self.turn = self.next_turn()
             return True
         else:
             return False
@@ -104,6 +120,9 @@ class Board:
 
     def undo_moves(self, coords):
         return all([self.undo_move(coord) for coord in coords])
+
+    def num_moves(self):
+        return int(np.sum(self.matrix != self.EMPTY))
 
     def num_moves_left(self):
         return int(np.sum(self.matrix == self.EMPTY))
@@ -147,3 +166,6 @@ class Board:
         if self.winner(None):
             pass
         raise NotImplementedError
+
+    def get_score(self):
+        return self.num_moves() * (-1) ** self.turn
