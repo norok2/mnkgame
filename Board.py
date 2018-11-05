@@ -1,10 +1,14 @@
 import numpy as np
 
+NUM_DIGITS = 10
+
 
 class Board:
     EMPTY = 0
     TURNS = (1, 2)
     _STR_BORDERS = '-', '|', '+'
+    _STR_SHOW_ROW_COORDS = True
+    _STR_SHOW_COL_COORDS = True
 
     def __init__(
             self,
@@ -25,12 +29,13 @@ class Board:
             (self.rows, self.cols), self.EMPTY, dtype=np.uint8)
         self.turn = self.TURNS[-1]
 
-    def _str_row_range(self):
+    @property
+    def _STR_ROW_RANGE(self):
         return range(self.rows)
 
     def __repr__(self):
         text = ''
-        for i in self._str_row_range():
+        for i in self._STR_ROW_RANGE:
             text += ''.join([self._REPRS[x] for x in self.matrix[i, :]]) + '\n'
         return text[:-1]
 
@@ -39,11 +44,19 @@ class Board:
         hor, ver, cross = self._STR_BORDERS
         reprs = (' ',) + self._REPRS[1:]
         hor_sep = cross + (hor + cross) * self.cols + '\n'
-        text += hor_sep
-        for i in self._str_row_range():
+        if self._STR_SHOW_COL_COORDS:
+            header = cross \
+                     + cross.join(
+                [str(i % NUM_DIGITS) for i in range(self.cols)]) \
+                     + cross + '\n'
+        else:
+            header = hor_sep
+        text += header
+        for i in self._STR_ROW_RANGE:
             text += \
-                ver + ver.join([reprs[x] for x in self.matrix[i, :]]) + ver \
-                + '\n' + hor_sep
+                (str(i % NUM_DIGITS) if self._STR_SHOW_ROW_COORDS else ver) \
+                + ver.join([reprs[x] for x in self.matrix[i, :]]) \
+                + ver + '\n' + hor_sep
         return text[:-1]
 
     def next_turn(self, turn=None):
@@ -127,9 +140,7 @@ class Board:
     def num_moves_left(self):
         return int(np.sum(self.matrix == self.EMPTY))
 
-    def winner(
-            self,
-            turn=None):
+    def winner(self, turn=None):
         if self.is_empty():
             return self.EMPTY
         elif turn is None:

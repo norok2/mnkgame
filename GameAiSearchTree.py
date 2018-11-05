@@ -62,6 +62,7 @@ def negamax_alphabeta_hashing(
         beta=np.inf,
         soft=True,
         hashtable=None):
+    # todo: fix hashing
     clock = time.time()
     if max_duration < 0:
         depth = 0
@@ -97,7 +98,7 @@ class GameAiSearchTree(GameAi):
             self,
             board=None,
             max_duration=10.0,
-            method='negamax_alphabeta_hashing',
+            method='negamax_alphabeta',
             method_kws=None,
             randomize=False,
             max_depth=None,
@@ -109,6 +110,9 @@ class GameAiSearchTree(GameAi):
         if not callable(func):
             raise ValueError('Unknown search-tree method.')
         method_kws = dict(method_kws) if method_kws is not None else {}
+        if 'hashing' in method:
+            hashtable = {}
+            method_kws.update(dict(hashtable=hashtable))
         if not max_depth:
             max_depth = 0
         elif max_depth < 0:

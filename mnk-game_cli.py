@@ -4,11 +4,13 @@ from BoardGravity import BoardGravity
 from GameAiRandom import GameAiRandom
 from GameAiSearchTree import GameAiSearchTree
 
-board = Board(3, 3, 3)
-# board = BoardGravity(6, 7, 4)
+# board = Board(3, 3, 3)
+board = BoardGravity(6, 7, 4)
 
 
-def handle_endgame(text, ask):
+def handle_endgame(
+        text,
+        ask):
     result = True
     print('\n', board, sep='')
     board.reset()
@@ -20,7 +22,11 @@ def handle_endgame(text, ask):
     return result
 
 
-def handle_move(board, coord, is_computer, ask_continue=True):
+def handle_move(
+        board,
+        coord,
+        is_computer,
+        ask_continue=True):
     if is_computer:
         print('Computer Move is: ', coord)
     board.do_move(coord)
@@ -53,7 +59,7 @@ computer_plays = False
 continue_game = True
 while continue_game:
     print('\n', board, sep='')
-    coord = GameAiSearchTree().get_best_move(board, 5.0, max_depth=-1) \
+    coord = GameAiSearchTree().get_best_move(board, 2.0, max_depth=-1) \
         if computer_plays else get_human_move()
     continue_game = handle_move(board, coord, computer_plays)
     computer_plays = not computer_plays
