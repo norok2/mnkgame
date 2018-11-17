@@ -3,15 +3,25 @@ import time
 import numpy as np
 from GameAi import GameAi
 
+
+def do_nothing_decorator(*args, **kwargs):
+    def wrapper(f):
+        return f
+
+    if len(args) > 0 and not callable(args[0]) or len(kwargs) > 0:
+        return wrapper
+    elif len(args) == 0:
+        return wrapper
+    else:
+        return args[0]
+
+
 # Numba import
 try:
     from numba import jit
 except ImportError:
     HAS_JIT = False
-
-
-    def jit(f):
-        return f
+    jit = do_nothing_decorator
 else:
     HAS_JIT = True
 
@@ -66,6 +76,7 @@ def negamax_alphabeta(
     return best_value
 
 
+@jit
 def negamax_alphabeta_jit(
         board,
         depth,
@@ -93,9 +104,6 @@ def negamax_alphabeta_jit(
         if best_value > alpha:
             alpha = best_value
     return best_value
-
-if HAS_JIT:
-    negamax_alphabeta = jit(negamax_alphabeta_jit)
 
 
 def negamax_alphabeta_pvs(
