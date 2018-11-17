@@ -2,19 +2,7 @@ import random
 import time
 import numpy as np
 from GameAi import GameAi
-
-
-def do_nothing_decorator(*args, **kwargs):
-    def wrapper(f):
-        return f
-
-    if len(args) > 0 and not callable(args[0]) or len(kwargs) > 0:
-        return wrapper
-    elif len(args) == 0:
-        return wrapper
-    else:
-        return args[0]
-
+from util import do_nothing_decorator
 
 # Numba import
 try:
