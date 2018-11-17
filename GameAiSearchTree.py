@@ -3,6 +3,18 @@ import time
 import numpy as np
 from GameAi import GameAi
 
+# Numba import
+try:
+    from numba import jit
+except ImportError:
+    HAS_JIT = False
+
+
+    def jit(f):
+        return f
+else:
+    HAS_JIT = True
+
 
 def negamax(
         board,
@@ -52,6 +64,38 @@ def negamax_alphabeta(
         if best_value > alpha:
             alpha = best_value
     return best_value
+
+
+def negamax_alphabeta_jit(
+        board,
+        depth,
+        max_duration=10.0,
+        alpha=-np.inf,
+        beta=np.inf,
+        soft=True):
+    clock = time.time()
+    if max_duration < 0:
+        depth = 0
+    if board.winner(board.turn) == board.turn:
+        return -np.inf
+    if depth == 0 or board.is_full():
+        return board.get_score()
+    best_value = -np.inf
+    for coord in board.sorted_moves():
+        board.do_move(coord)
+        value = -negamax_alphabeta_jit(
+            board, depth - 1, max_duration - (time.time() - clock),
+            -beta if soft else alpha, -alpha if soft else beta)
+        board.undo_move(coord)
+        best_value = max(value, best_value)
+        if best_value >= beta:
+            break
+        if best_value > alpha:
+            alpha = best_value
+    return best_value
+
+if HAS_JIT:
+    negamax_alphabeta = jit(negamax_alphabeta_jit)
 
 
 def negamax_alphabeta_pvs(
@@ -140,7 +184,7 @@ class GameAiSearchTree(GameAi):
             self,
             board=None,
             max_duration=10.0,
-            method='negamax_alphabeta_pvs',
+            method='negamax_alphabeta_jit',
             method_kws=None,
             randomize=False,
             max_depth=None,
