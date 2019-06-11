@@ -1,10 +1,10 @@
-def do_nothing_decorator(*args, **kwargs):
+def do_nothing_decorator(*_args, **_kws):
     def wrapper(f):
         return f
 
-    if len(args) > 0 and not callable(args[0]) or len(kwargs) > 0:
+    if len(_args) > 0 and not callable(_args[0]) or len(_kws) > 0:
         return wrapper
-    elif len(args) == 0:
+    elif len(_args) == 0:
         return wrapper
     else:
-        return args[0]
+        return _args[0]

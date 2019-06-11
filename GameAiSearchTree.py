@@ -173,8 +173,8 @@ def negamax_alphabeta_hashing(
 
 
 class GameAiSearchTree(GameAi):
-    def __init__(self, *args, **kwargs):
-        GameAi.__init__(self, *args, **kwargs)
+    def __init__(self, *_args, **_kws):
+        GameAi.__init__(self, *_args, **_kws)
 
     def get_best_move(
             self,

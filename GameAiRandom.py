@@ -5,8 +5,8 @@ random.seed()
 
 
 class GameAiRandom(GameAi):
-    def __init__(self, *args, **kwargs):
-        GameAi.__init__(self, *args, **kwargs)
+    def __init__(self, *_args, **_kws):
+        GameAi.__init__(self, *_args, **_kws)
 
     def get_best_move(self, board=None):
         avail_moves = board.avail_moves()

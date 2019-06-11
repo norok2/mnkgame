@@ -7,8 +7,8 @@ from Board import Board
 class BoardGravity(Board):
     _STR_SHOW_ROW_COORDS = False
 
-    def __init__(self, *args, **kwargs):
-        Board.__init__(self, *args, **kwargs)
+    def __init__(self, *_args, **_kws):
+        Board.__init__(self, *_args, **_kws)
 
     @property
     def _STR_ROW_RANGE(self):
