@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import random
 import time
 import numpy as np
@@ -184,7 +187,9 @@ class GameAiSearchTree(GameAi):
             method_kws=None,
             randomize=False,
             max_depth=None,
-            verbose=True):
+            verbose=True,
+            *_args,
+            **_kws):
         if method in globals():
             func = globals()[method]
         else:
