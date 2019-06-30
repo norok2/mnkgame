@@ -13,6 +13,10 @@ class BoardGravity(Board):
         Board.__init__(self, *_args, **_kws)
 
     @property
+    def has_gravity(self):
+        return True
+
+    @property
     def _STR_ROW_RANGE(self):
         return range(self.rows - 1, -1, -1)
 
