@@ -64,7 +64,7 @@ def handle_move(
 
 
 # ======================================================================
-def get_human_move(board, menu_choices, max_avail=5, show_menu=True):
+def get_human_move(board, menu_choices, max_avail=6, show_menu=True):
     is_valid = False
     choice = None
     if max_avail:
