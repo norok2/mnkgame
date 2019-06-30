@@ -3,8 +3,8 @@
 
 import ast  # Abstract Syntax Trees
 
-from util import VERB_LVL_NAMES, VERB_LVL, D_VERB_LVL
-from util import msg
+from mnkgame import D_VERB_LVL
+from mnkgame import msg
 
 
 # ======================================================================
@@ -18,7 +18,7 @@ def handle_endgame(
     board.reset()
     msg(text, fmt=fmt)
     if ask:
-        msg('Play a new game ([Y]/n)? ', end='', fmt='bold')
+        msg('Play a new game ([Y]/n)? ', end='', fmt='{t.bold}')
         choice = input()
         if choice.strip().lower() == 'n':
             result = False
@@ -32,16 +32,18 @@ def handle_move(
         is_computer,
         ask_continue=True):
     if is_computer:
-        msg('Computer Move is: ' + str(coord), fmt='magenta')
+        msg('Computer Move is: ' + str(coord), fmt='{t.magenta}')
     board.do_move(coord)
     if board.winner(board.turn) == board.turn:
         result = handle_endgame(
             board,
             'YOU LOST!\n' if is_computer else 'Congratulations! You WIN!\n',
-            ask_continue, 'red' if is_computer else 'green')
+            ask_continue,
+            '{t.bold}{t.red}' if is_computer else '{t.bold}{t.green}')
     elif board.is_full():
         result = handle_endgame(
-            board, 'The game ended in draw.\n', ask_continue, 'yellow')
+            board, 'The game ended in draw.\n', ask_continue,
+            '{t.bold}{t.yellow}')
     else:
         result = True
     return result
@@ -51,10 +53,10 @@ def handle_move(
 def get_human_move(board):
     is_valid = False
     coord = None
-    msg('Available Moves: ' + str(sorted(board.avail_moves())), fmt='cyan')
+    msg('Available Moves: ' + str(sorted(board.avail_moves())), fmt='{t.cyan}')
     while not is_valid:
         try:
-            msg('What is your move (q|Q to quit)? ', end='', fmt='bold')
+            msg('What is your move (q|Q to quit)? ', end='', fmt='{t.bold}')
             choice = input().strip().lower()
             if choice == 'q':
                 quit()

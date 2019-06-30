@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import random
-from GameAi import GameAi
+from mnkgame.GameAi import GameAi
 
 random.seed()
 

@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import ast  # Abstract Syntax Trees
 import prompt_toolkit as pt
 import prompt_toolkit.key_binding
 import prompt_toolkit.buffer
 import prompt_toolkit.layout
-
-from util import VERB_LVL_NAMES, VERB_LVL, D_VERB_LVL
-from util import msg
 
 # ======================================================================
 kb = pt.key_binding.KeyBindings()
@@ -32,7 +28,8 @@ def mnk_game_tui(
     root_container = pt.layout.containers.VSplit([
         # One window that holds the BufferControl with the default buffer on
         # the left.
-        pt.layout.containers.Window(content=pt.layout.controls.BufferControl(buffer=buffer1)),
+        pt.layout.containers.Window(
+            content=pt.layout.controls.BufferControl(buffer=buffer1)),
 
         # A vertical line in the middle. We explicitly specify the width, to
         # make sure that the layout engine will not try to divide the whole
@@ -41,7 +38,9 @@ def mnk_game_tui(
         pt.layout.containers.Window(width=20, height=10, char='|'),
 
         # Display the text 'Hello world' on the right.
-        pt.layout.containers.Window(content=pt.layout.controls.FormattedTextControl(text='<b>Hello</b> world')),
+        pt.layout.containers.Window(
+            content=pt.layout.controls.FormattedTextControl(
+                text='<b>Hello</b> world')),
     ])
 
     lo = pt.layout.layout.Layout(root_container)
@@ -49,3 +48,10 @@ def mnk_game_tui(
     app = pt.Application(
         layout=lo, key_bindings=kb, full_screen=False)
     app.run()
+
+
+# ======================================================================
+if __name__ == '__main__':
+    from mnkgame.mnk_game import main
+
+    main()

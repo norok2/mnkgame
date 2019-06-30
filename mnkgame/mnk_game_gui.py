@@ -3,13 +3,8 @@
 
 import ast  # Abstract Syntax Trees
 
-from util import VERB_LVL_NAMES, VERB_LVL, D_VERB_LVL
-from util import msg
-
-from Board import Board
-from BoardGravity import BoardGravity
-from GameAiRandom import GameAiRandom
-from GameAiSearchTree import GameAiSearchTree
+from mnkgame import D_VERB_LVL
+from mnkgame import msg
 
 
 # ======================================================================

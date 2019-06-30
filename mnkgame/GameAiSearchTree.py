@@ -4,8 +4,8 @@
 import random
 import time
 import numpy as np
-from GameAi import GameAi
-from util import do_nothing_decorator
+from mnkgame.GameAi import GameAi
+from mnkgame import do_nothing_decorator
 
 # Numba import
 try:
@@ -67,7 +67,7 @@ def negamax_alphabeta(
     return best_value
 
 
-@jit
+@jit(forceobj=True)
 def negamax_alphabeta_jit(
         board,
         depth,

@@ -27,12 +27,12 @@ import importlib  # The implementation of `import`
 # :: External Imports Submodules
 
 # :: Internal Imports
-from util import INFO, __version__
-from util import VERB_LVL_NAMES, VERB_LVL, D_VERB_LVL
-from util import msg
+from mnkgame import print_greetings
+from mnkgame import INFO
+from mnkgame import VERB_LVL, D_VERB_LVL
+from mnkgame import msg
 
-from GameAiRandom import GameAiRandom
-from GameAiSearchTree import GameAiSearchTree
+from mnkgame.GameAiSearchTree import GameAiSearchTree
 
 # ======================================================================
 AI_MODES = (
@@ -50,14 +50,14 @@ def prepare_game(
         ai_mode,
         **_kws):
     if gravity:
-        from BoardGravity import BoardGravity as BoardClass
+        from mnkgame.BoardGravity import BoardGravity as BoardClass
     else:
-        from Board import Board as BoardClass
+        from mnkgame.Board import Board as BoardClass
     board = BoardClass(rows, cols, aligned)
     if ai_mode == 'random':
-        from GameAiRandom import GameAiRandom as game_ai_class
+        pass
     else:
-        from GameAiSearchTree import GameAiSearchTree as game_ai_class
+        pass
     game_ai_class = GameAiSearchTree
     if ai_mode == 'negamax':
         method = 'negamax'
@@ -140,23 +140,28 @@ def handle_arg():
 
 # ======================================================================
 def main():
+    begin_time = datetime.datetime.now()
+
     # :: handle program parameters
     arg_parser = handle_arg()
     args = arg_parser.parse_args()
     # fix verbosity in case of 'quiet'
     if args.quiet:
         args.verbose = VERB_LVL['none']
+    # print greetings
+    print_greetings('inline')
     # print help info
     if args.verbose >= VERB_LVL['debug']:
         arg_parser.print_help()
     msg('\nARGS: ' + str(vars(args)), args.verbose, VERB_LVL['debug'])
     msg(__doc__.strip(), args.verbose, VERB_LVL['lower'])
 
-    begin_time = datetime.datetime.now()
-
     kws = vars(args)
     kws.pop('quiet')
 
+    if args.verbose >= D_VERB_LVL:
+        msg('I: m={rows} (rows),  n={cols} (cols),  k={aligned} (aligned),'
+            '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format(**kws))
     ui_args = prepare_game(**kws)
     for k in ('rows', 'cols', 'aligned', 'gravity', 'ai_mode'):
         kws.pop(k)
@@ -166,7 +171,7 @@ def main():
         ui = 'cli'
     if ui in USER_INTERFACES[1:]:
         ui_module_name = ui_name = 'mnk_game_' + ui
-        ui_module = importlib.import_module(ui_module_name)
+        ui_module = importlib.import_module('mnkgame.' + ui_module_name)
         mnk_game_ui = getattr(ui_module, ui_name)
         mnk_game_ui(*ui_args, **kws)
 

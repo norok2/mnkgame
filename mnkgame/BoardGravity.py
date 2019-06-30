@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import itertools
 
-from Board import Board
+from mnkgame.Board import Board
 
 
 class BoardGravity(Board):
