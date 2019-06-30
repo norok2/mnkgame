@@ -36,9 +36,17 @@ from mnkgame.GameAiSearchTree import GameAiSearchTree
 
 # ======================================================================
 AI_MODES = (
-    'alphabeta_jit', 'alphabeta', 'negamax', 'pvs', 'alphabeta_hashing',
+    # 'alphabeta_jit',
+    'alphabeta',
+    'negamax',
+    # 'pvs',
+    # 'alphabeta_hashing',
     'random')
-USER_INTERFACES = ('auto', 'gui', 'tui', 'cli')
+USER_INTERFACES = (
+    'auto',
+    # 'gui',
+    # 'tui',
+    'cli')
 
 
 # ======================================================================
