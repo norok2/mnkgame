@@ -32,7 +32,7 @@ from mnkgame import INFO
 from mnkgame import VERB_LVL, D_VERB_LVL
 from mnkgame import msg
 
-from mnkgame.GameAiSearchTree import GameAiSearchTree
+from mnkgame.util import prepare_game
 
 # ======================================================================
 AI_MODES = (
@@ -47,39 +47,12 @@ USER_INTERFACES = (
     # 'gui',
     # 'tui',
     'cli')
-
-
-# ======================================================================
-def prepare_game(
-        rows,
-        cols,
-        aligned,
-        gravity,
-        ai_mode,
-        **_kws):
-    if gravity:
-        from mnkgame.BoardGravity import BoardGravity as BoardClass
-    else:
-        from mnkgame.Board import Board as BoardClass
-    board = BoardClass(rows, cols, aligned)
-    if ai_mode == 'random':
-        pass
-    else:
-        pass
-    game_ai_class = GameAiSearchTree
-    if ai_mode == 'negamax':
-        method = 'negamax'
-    elif ai_mode == 'alphabeta':
-        method = 'negamax_alphabeta'
-    elif ai_mode == 'alphabeta_jit':
-        method = 'negamax_alphabeta_jit'
-    elif ai_mode == 'pvs':
-        method = 'negamax_alphabeta_pvs'
-    elif ai_mode == 'alphabeta_hashing':
-        method = 'negamax_alphabeta_hashing'
-    else:  # if ai_method == 'random':
-        method = None
-    return board, game_ai_class, method
+ALIASES = dict(
+    custom=None,
+    tictactoe=dict(rows=3, cols=3, aligned=3, gravity=False),
+    connect4=dict(rows=6, cols=7, aligned=4, gravity=True),
+    gomoku=dict(rows=15, cols=15, aligned=5, gravity=False),
+)
 
 
 # ======================================================================
@@ -115,6 +88,11 @@ def handle_arg():
         nargs='?', choices=USER_INTERFACES,
         type=str, default=USER_INTERFACES[0],
         help='select the user interfact [%(default)s|(%(choices)s)]')
+    arg_parser.add_argument(
+        'alias', metavar='GAME_NAME',
+        nargs='?', choices=list(ALIASES.keys()),
+        type=str, default=list(ALIASES.keys())[0],
+        help='select a common game alias [%(default)s|(%(choices)s)]')
     arg_parser.add_argument(
         '-m', '--rows', metavar='N',
         type=int, default=3,
@@ -173,15 +151,16 @@ def main():
     kws = vars(args)
     kws.pop('quiet')
 
+    alias = kws.pop('alias')
+    if alias != 'custom':
+        kws.update(ALIASES[alias])
+
     if args.verbose >= D_VERB_LVL:
         msg('I: m={rows} (rows),  n={cols} (cols),  k={aligned} (aligned),'
             '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format(**kws),
             fmt=not args.ugly)
-    ui_args = prepare_game(**kws)
-    kws['pretty'] = not args.ugly
-    for k in ('rows', 'cols', 'aligned', 'gravity', 'ai_mode', 'ugly'):
-        kws.pop(k)
 
+    kws['pretty'] = not kws.pop('ugly')
 
     ui = kws.pop('ui')
     if ui == 'auto':
@@ -190,7 +169,7 @@ def main():
         ui_module_name = ui_name = 'mnk_game_' + ui
         ui_module = importlib.import_module('mnkgame.' + ui_module_name)
         mnk_game_ui = getattr(ui_module, ui_name)
-        mnk_game_ui(*ui_args, **kws)
+        mnk_game_ui(**kws)
 
     exec_time = datetime.datetime.now() - begin_time
     msg('ExecTime: {}'.format(exec_time), args.verbose, VERB_LVL['debug'],

@@ -7,6 +7,8 @@ from mnkgame import prettify
 from mnkgame import D_VERB_LVL
 from mnkgame import msg
 
+from mnkgame.util import prepare_game
+
 
 # ======================================================================
 def colorized_board(board, pretty=True, pieces=True, grid=True):
@@ -109,18 +111,22 @@ def get_human_move(
 
 # ======================================================================
 def mnk_game_cli(
-        board,
-        game_ai_class,
-        method,
+        rows,
+        cols,
+        aligned,
+        gravity,
+        ai_mode,
         ai_time_limit,
         computer_plays,
         pretty,
         verbose):
+    board, game_ai_class, method = prepare_game(
+        rows, cols, aligned, gravity, ai_mode)
     choice = 'n'
     continue_game = True
     first_computer_plays = computer_plays
     while continue_game:
-        if choice is not None:
+        if choice not in {None, 's'}:
             print('\n' + colorized_board(board, pretty), sep='')
         if computer_plays:
             choice = game_ai_class().get_best_move(
