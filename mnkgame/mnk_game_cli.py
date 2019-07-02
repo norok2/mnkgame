@@ -3,22 +3,23 @@
 
 import ast  # Abstract Syntax Trees
 
-from mnkgame import colorize
+from mnkgame import prettify
 from mnkgame import D_VERB_LVL
 from mnkgame import msg
 
 
 # ======================================================================
-def colorized_board(board, pieces=True, grid=True):
+def colorized_board(board, pretty=True, pieces=True, grid=True):
     text = str(board)
-    substs = dict()
-    if pieces:
-        substs.update({'X': '{o}{B}X{x}', 'O': '{o}{R}O{x}'})
-    if board:
-        substs.update({x: '{o}' + x + '{x}' for x in ('|', '+', '-')})
-    for key, val in substs.items():
-        text = text.replace(key, val)
-    return colorize(text)
+    if pretty:
+        substs = dict()
+        if pieces:
+            substs.update({'X': '{o}{B}X{x}', 'O': '{o}{R}O{x}'})
+        if grid:
+            substs.update({x: '{o}' + x + '{x}' for x in ('|', '+', '-')})
+        for key, val in substs.items():
+            text = text.replace(key, val)
+    return prettify(text, pretty)
 
 
 # ======================================================================
@@ -28,11 +29,12 @@ def handle_endgame(
         ask,
         fmt):
     result = True
-    print('\n' + colorized_board(board), sep='')
+    print('\n' + colorized_board(board, bool(fmt)), sep='')
     board.reset()
     msg(text, fmt=fmt)
     if ask:
-        msg('Play a new game ([Y]/n)? ', end='', fmt='{t.bold}')
+        msg('Play a new game ([Y]/n)? ', end='',
+            fmt='{t.bold}' if bool(fmt) else False)
         choice = input()
         if choice.strip().lower() == 'n':
             result = False
@@ -44,27 +46,35 @@ def handle_move(
         board,
         coord,
         is_computer,
-        ask_continue=True):
+        ask_continue=True,
+        pretty=True):
     if is_computer:
-        msg('Computer Move is: ' + str(coord), fmt='{t.magenta}')
+        msg('Computer Move is: ' + str(coord),
+            fmt='{t.magenta}' if pretty else False)
     board.do_move(coord)
     if board.winner(board.turn) == board.turn:
         result = handle_endgame(
             board,
             'YOU LOST!\n' if is_computer else 'Congratulations! You WIN!\n',
             ask_continue,
-            '{t.bold}{t.red}' if is_computer else '{t.bold}{t.green}')
+            ('{t.bold}{t.red}' if is_computer else '{t.bold}{t.green}')
+            if pretty else False)
     elif board.is_full():
         result = handle_endgame(
             board, 'The game ended in draw.\n', ask_continue,
-            '{t.bold}{t.yellow}')
+            '{t.bold}{t.yellow}' if pretty else False)
     else:
         result = True
     return result
 
 
 # ======================================================================
-def get_human_move(board, menu_choices, max_avail=6, show_menu=True):
+def get_human_move(
+        board,
+        menu_choices,
+        max_avail=6,
+        show_menu=True,
+        pretty=True):
     is_valid = False
     choice = None
     if max_avail:
@@ -75,14 +85,15 @@ def get_human_move(board, menu_choices, max_avail=6, show_menu=True):
         msg('Available Moves: '
             + str(sorted(avail_moves)[:max_avail if too_many else None]) \
                 [:-1 if too_many else None]
-            + (', ...]' if too_many else ''), fmt='{t.cyan}')
+            + (', ...]' if too_many else ''),
+            fmt='{t.cyan}' if pretty else False)
+    if show_menu:
+        print(prettify('Menu: ' + ', '.join(
+            [':'.join(['{o}' + k + '{x}', v])
+             for k, v in menu_choices.items()]), pretty=pretty))
     while not is_valid:
         try:
-            if show_menu:
-                print(colorize('Menu: ' + ', '.join(
-                    [':'.join(['{o}' + k + '{x}', v])
-                     for k, v in menu_choices.items()])))
-            msg(' > ', end='', fmt='{t.bold}')
+            msg(' > ', end='', fmt='{t.bold}' if pretty else False)
             choice = input().strip().lower()
             if choice in menu_choices:
                 is_valid = True
@@ -91,7 +102,8 @@ def get_human_move(board, menu_choices, max_avail=6, show_menu=True):
                 is_valid = \
                     board.is_valid_move(choice) and board.is_avail_move(choice)
         except (TypeError, SyntaxError, ValueError):
-            pass
+            msg('W: Unknown input. Must be a coordinate / menu choice.',
+                fmt=pretty)
     return choice
 
 
@@ -102,13 +114,14 @@ def mnk_game_cli(
         method,
         ai_time_limit,
         computer_plays,
+        pretty,
         verbose):
     choice = 'n'
     continue_game = True
     first_computer_plays = computer_plays
     while continue_game:
         if choice is not None:
-            print('\n' + colorized_board(board), sep='')
+            print('\n' + colorized_board(board, pretty), sep='')
         if computer_plays:
             choice = game_ai_class().get_best_move(
                 board, ai_time_limit, method, max_depth=-1,
@@ -117,24 +130,27 @@ def mnk_game_cli(
             menu_choices = dict(
                 q='quit', n='new game', s='switch sides', h='hint')
             if choice is not None:
-                choice = get_human_move(board, menu_choices)
+                choice = get_human_move(
+                    board, menu_choices, pretty=pretty)
             else:
-                choice = get_human_move(board, menu_choices, 0, False)
+                choice = get_human_move(
+                    board, menu_choices, 0, False, pretty=pretty)
             if choice == 'q':
-                quit()
+                break
             elif choice == 'n':
-                msg('I: New game started!')
+                msg('I: New game started!', fmt=pretty)
                 first_computer_plays = not first_computer_plays
                 computer_plays = first_computer_plays
                 board.reset()
             elif choice == 's':
-                msg('I: switching sides (computer plays)!')
+                msg('I: switching sides (computer plays)!', fmt=pretty)
             elif choice == 'h':
                 coord = game_ai_class().get_best_move(
                     board, ai_time_limit, method, max_depth=-1,
                     verbose=True)
-                msg('I: Best move for computer: ' + str(coord))
+                msg('I: Best move for computer: ' + str(coord), fmt=pretty)
                 choice = None
         if choice is not None:
-            continue_game = handle_move(board, choice, computer_plays)
+            continue_game = handle_move(
+                board, choice, computer_plays, True, pretty)
             computer_plays = not computer_plays

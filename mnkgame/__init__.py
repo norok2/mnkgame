@@ -21,8 +21,6 @@ import pkg_resources  # Manage package resource (from setuptools module)
 
 # ======================================================================
 # :: External Imports
-# import flyingcircus as fc  # Everything you always wanted to have in Python.*
-# from flyingcircus import msg, dbg, elapsed, report
 
 # ======================================================================
 # :: Version
@@ -56,8 +54,15 @@ VERB_LVL = {k: v for v, k in enumerate(VERB_LVL_NAMES)}
 D_VERB_LVL = VERB_LVL['lowest']
 
 # ======================================================================
-# :: quick and dirty timing facility
-_EVENTS = []
+# : Colored terminal
+# if blessed/blessings is not present, no coloring
+try:
+    from blessed import Terminal
+except ImportError:
+    try:
+        from blessed import Terminal
+    except ImportError:
+        Terminal = None
 
 # ======================================================================
 # Greetings and Logos
@@ -126,11 +131,11 @@ MY_LOGO = r"""
 """
 
 MY_LOGO_SMALL = r"""
- {o}{B}\/{x} {o}|{x} {o}{R}/\{x} 
- {o}{B}/\{x} {o}|{x} {o}{R}\/{x} 
-{o}----+----{x}
- {o}{R}/\{x} {o}|{x} {o}{B}\/{x} 
- {o}{R}\/{x} {o}|{x} {o}{B}/\{x} 
+ {o}{B}\_/{x} {o}|{x} {o}{R}/"\{x} 
+ {o}{B}/ \{x} {o}|{x} {o}{R}\_/{x} 
+{o}-----+-----{x}
+ {o}{R}/"\{x} {o}|{x} {o}{B}\_/{x} 
+ {o}{R}\_/{x} {o}|{x} {o}{B}/ \{x} 
 """
 
 MY_LOGO_TINY = r"""
@@ -189,7 +194,7 @@ def msg(
         text,
         verb_lvl=D_VERB_LVL,
         verb_threshold=D_VERB_LVL,
-        fmt=None,
+        fmt=True,
         *_args,
         **_kws):
     """
@@ -199,8 +204,12 @@ def msg(
         text (str|Any): Message to display or object with `__repr__`.
         verb_lvl (int): Current level of verbosity.
         verb_threshold (int): Threshold level of verbosity.
-        fmt (str): Format of the message (if `blessed` supported).
-            If None, a standard formatting is used.
+        fmt (str|bool|None): Format of the message (if `blessed` supported).
+            If True, a standard formatting is used.
+            If False, empty string or None, no formatting is applied.
+            If str, the specified formatting is used.
+            This must be in the form of `{t.NAME}` where `NAME` refer to
+            a formatting supported by `Terminal()` from `blessed`/`blessings`.
         *_args: Positional arguments for `print()`.
         **_kws: Keyword arguments for `print()`.
 
@@ -222,23 +231,10 @@ def msg(
          : a b c
     """
     if verb_lvl >= verb_threshold and text is not None:
-        # if blessed/blessings is not present, no coloring
-        try:
-            import blessed
-        except ImportError:
-            try:
-                import blessings as blessed
-            except ImportError:
-                blessed = None
-
-        try:
-            t = blessed.Terminal()
-        except (ValueError, AttributeError):
-            t = None
-
-        if blessed and t:
+        t = Terminal() if callable(Terminal) else None
+        if t is not None and fmt:
             text = str(text)
-            if not fmt:
+            if fmt is True:
                 if VERB_LVL['low'] < verb_threshold <= VERB_LVL['medium']:
                     e = t.cyan
                 elif VERB_LVL['medium'] < verb_threshold < VERB_LVL['debug']:
@@ -318,13 +314,13 @@ def pkg_paths(
 # ======================================================================
 def blessify(
         text,
-        colored=False):
+        pretty=False):
     """
     Preprocess text to be used with `blessed` / `blessings`.
 
     Args:
         text (str): The input text.
-        colored (bool): Preprocess for colors.
+        pretty (bool): Use terminal effects (if available).
 
     Returns:
         text (str): The output text.
@@ -333,7 +329,7 @@ def blessify(
         o='bold', v='reverse', x='normal',
         K='black', R='red', G='green', Y='yellow', B='blue', M='magenta',
         C='cyan', W='white')
-    if colored:
+    if pretty:
         for key, val in substs.items():
             text = text.replace('{' + key + '}', '{t.' + val + '}')
     else:
@@ -343,31 +339,20 @@ def blessify(
 
 
 # ======================================================================
-def colorize(text):
+def prettify(text, pretty=False):
     """
-    Print with colors if possible.
+    Apply terminal effects.
 
     Args:
         text (str): The input text.
+        pretty (bool): Use terminal effects (if available).
 
     Returns:
         text (str): The output text.
     """
-    # if blessed/blessings is not present, no coloring
-    try:
-        import blessed
-    except ImportError:
-        try:
-            import blessings as blessed
-        except ImportError:
-            blessed = None
+    t = Terminal() if callable(Terminal) else None
 
-    try:
-        t = blessed.Terminal()
-    except (ValueError, AttributeError):
-        t = None
-
-    if t is not None:
+    if t is not None and pretty:
         text = blessify(text, True).format(t=t)
     else:
         text = blessify(text, False)
@@ -377,7 +362,7 @@ def colorize(text):
 # ======================================================================
 def print_logo(
         size='normal',
-        color=True,
+        pretty=True,
         **_kws):
     """
     Print the standard logo.
@@ -386,7 +371,7 @@ def print_logo(
         size (str): The size of the logo.
             Possible values are: 'normal', 'small', 'tiny'.
             Other values are coerced to 'normal'.
-        color (bool): Use colors if available.
+        pretty (bool): Use terminal effects (if available).
         **_kws: Keyword arguments for `print()`.
 
     Returns:
@@ -395,14 +380,14 @@ def print_logo(
     if size.lower() not in {'small', 'tiny'}:
         size = ''
     the_size = ('_' + size.upper()) if size else ''
-    text = blessify(globals()['MY_LOGO' + the_size], colored=color)
-    print(colorize(text))
+    text = blessify(globals()['MY_LOGO' + the_size], pretty=pretty)
+    print(prettify(text, pretty))
 
 
 # ======================================================================
 def print_greetings(
         mode='inline',
-        color=True,
+        pretty=True,
         **_kws):
     """
     Print the standard greeting.
@@ -413,7 +398,7 @@ def print_greetings(
             If 'inline', prints the logo and the greetings side by side.
             Otherwise, prints the logo (with corresponding size) followed by
             the greetings.
-        color (bool): Use colors if available.
+        pretty (bool): Use terminal effects (if available).
         **_kws: Keyword arguments for `print()`.
 
     Returns:
@@ -427,13 +412,13 @@ def print_greetings(
                 itertools.zip_longest(
                     text_logo[1:].splitlines(), MY_GREETINGS[1:].splitlines()):
             text += '  '.join([line_logo, line_greetings]) + '\n'
-        print(colorize(text))
+        print(prettify(text, pretty))
     else:
-        print_logo(mode, color, end='')
+        print_logo(mode, pretty, end='')
         if mode != 'tiny':
-            print(colorize(MY_GREETINGS[1:]))
+            print(prettify(MY_GREETINGS[1:], pretty))
         else:
-            print(colorize('{o}{x}'))
+            print(prettify('{o}{x}', pretty))
 
 
 # ======================================================================
@@ -444,7 +429,7 @@ if __name__ == '__main__':
     import doctest  # Test interactive Python examples
 
     msg(__doc__.strip())
-    msg('Running `doctest.testmod()`... ', fmt='bold')
+    msg('Running `doctest.testmod()`... ', fmt='{t.bold}')
     results = doctest.testmod()  # RUN TESTS HERE!
     results_ok = results.attempted - results.failed
     results_fmt = '{t.bold}{t.red}' \

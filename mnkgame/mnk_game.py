@@ -143,6 +143,10 @@ def handle_arg():
         '-c', '--computer_plays',
         action='store_true',
         help='computer plays first move of first game [%(default)s]')
+    arg_parser.add_argument(
+        '-u', '--ugly',
+        action='store_true',
+        help='do not use terminal formatting [%(default)s]')
     return arg_parser
 
 
@@ -157,22 +161,27 @@ def main():
     if args.quiet:
         args.verbose = VERB_LVL['none']
     # print greetings
-    print_greetings('inline')
+    print_greetings('inline', not args.ugly)
     # print help info
     if args.verbose >= VERB_LVL['debug']:
         arg_parser.print_help()
-    msg('\nARGS: ' + str(vars(args)), args.verbose, VERB_LVL['debug'])
-    msg(__doc__.strip(), args.verbose, VERB_LVL['lower'])
+    msg('\nARGS: ' + str(vars(args)), args.verbose, VERB_LVL['debug'],
+        fmt=not args.ugly)
+    msg(__doc__.strip(), args.verbose, VERB_LVL['lower'],
+        fmt=not args.ugly)
 
     kws = vars(args)
     kws.pop('quiet')
 
     if args.verbose >= D_VERB_LVL:
         msg('I: m={rows} (rows),  n={cols} (cols),  k={aligned} (aligned),'
-            '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format(**kws))
+            '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format(**kws),
+            fmt=not args.ugly)
     ui_args = prepare_game(**kws)
-    for k in ('rows', 'cols', 'aligned', 'gravity', 'ai_mode'):
+    kws['pretty'] = not args.ugly
+    for k in ('rows', 'cols', 'aligned', 'gravity', 'ai_mode', 'ugly'):
         kws.pop(k)
+
 
     ui = kws.pop('ui')
     if ui == 'auto':
@@ -184,7 +193,8 @@ def main():
         mnk_game_ui(*ui_args, **kws)
 
     exec_time = datetime.datetime.now() - begin_time
-    msg('ExecTime: {}'.format(exec_time), args.verbose, VERB_LVL['debug'])
+    msg('ExecTime: {}'.format(exec_time), args.verbose, VERB_LVL['debug'],
+        fmt=kws['pretty'])
 
 
 # ======================================================================
