@@ -1,6 +1,55 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+PIECE_X = {
+    '1x1': r"""
+X
+""",
+    '2x3': r"""
+\_/
+/ \
+""",
+    '4x6': r"""
+__  __
+\ \/ /
+ )  ( 
+/_/\_\
+""",
+    '5x7': r"""
+__   __
+\ \ / /
+ \ ' / 
+ / . \ 
+/_/ \_\
+"""}
+
+PIECE_O = {
+    '1x1': r"""
+O
+""",
+    '2x3': r"""
+/"\
+\_/
+""",
+    '4x6': r"""
+  ___  
+ / _ \ 
+| (_) |
+ \___/ 
+""",
+    '5x7': r"""
+  ____
+ / __ \
+| /  \ |
+| \__/ |
+ \____/
+"""}
+
+PIECES = dict(
+    x={k: v[1:-1] for k, v in PIECE_X.items()},
+    o={k: v[1:-1] for k, v in PIECE_O.items()})
+
+
 import prompt_toolkit as pt
 import prompt_toolkit.key_binding
 import prompt_toolkit.buffer
