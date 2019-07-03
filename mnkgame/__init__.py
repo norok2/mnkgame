@@ -286,11 +286,13 @@ def pkg_paths(
         version (str): Application version.
 
     Returns:
-        dirs (dict): The requested directory.
+        dirs (dict): The package directories.
             - 'config': directory for configuration files.
             - 'cache': directory for caching files.
             - 'data': directory for data files.
             - 'log': directory for log files.
+            - 'base': base directory of the module.
+            - 'resources': directory for the data resources.
 
     Examples:
         >>> sorted(pkg_paths().keys())
@@ -298,8 +300,6 @@ def pkg_paths(
     """
     dirpaths = dict((
         # todo: fix for pyinstaller
-        ('base', os.path.dirname(current_filepath)),
-        ('resources', pkg_resources.resource_filename('resources', '.')),
         ('config', appdirs.user_config_dir(name, author, version)),
         ('cache', appdirs.user_cache_dir(name, author, version)),
         ('data', appdirs.user_data_dir(name, author, version)),
@@ -308,6 +308,8 @@ def pkg_paths(
     for name, dirpath in dirpaths.items():
         if not os.path.isdir(dirpath):
             os.makedirs(dirpath)
+    dirpaths['base'] = os.path.dirname(current_filepath)
+    dirpaths['resources'] = os.path.join(dirpaths['base'], 'resources')
     return dirpaths
 
 
