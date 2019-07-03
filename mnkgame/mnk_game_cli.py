@@ -94,17 +94,25 @@ def get_human_move(
             [':'.join(['{o}' + k + '{x}', v])
              for k, v in menu_choices.items()]), pretty=pretty))
     while not is_valid:
-        try:
-            msg(' > ', end='', fmt='{t.bold}' if pretty else False)
-            choice = input().strip().lower()
-            if choice in menu_choices:
-                is_valid = True
-            else:
+        msg(' > ', end='', fmt='{t.bold}' if pretty else False)
+        choice = input().strip().lower()
+        if choice in menu_choices:
+            is_valid = True
+        else:
+            try:
                 choice = ast.literal_eval(choice)
+            except (SyntaxError, ValueError):
+                pass
+            if (isinstance(choice, int) and hasattr(board, 'has_gravity')) or (
+                    isinstance(choice, tuple) and len(choice) == 2
+                    and all(isinstance(coord, int) for coord in choice)
+                    and not hasattr(board, 'has_gravity')):
                 is_valid = \
                     board.is_valid_move(choice) and board.is_avail_move(choice)
-        except (TypeError, SyntaxError, ValueError):
-            msg('W: Unknown input. Must be a coordinate / menu choice.',
+            else:
+                is_valid = False
+        if not is_valid:
+            msg('W: Invalid input. Must be a coordinate / menu choice.',
                 fmt=pretty)
     return choice
 
