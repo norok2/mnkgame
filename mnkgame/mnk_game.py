@@ -44,7 +44,7 @@ AI_MODES = (
     'random')
 USER_INTERFACES = (
     'auto',
-    # 'gui',
+    'gui',
     # 'tui',
     'cli')
 ALIASES = dict(
