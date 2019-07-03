@@ -36,6 +36,18 @@ class Board:
     def _STR_ROW_RANGE(self):
         return range(self.rows)
 
+    @property
+    def max_num_moves(self):
+        return self.rows * self.cols
+
+    @property
+    def _win_score(self):
+        return self.max_num_moves * self.win_len
+
+    @property
+    def win_score(self):
+        return (self.max_num_moves - self.num_moves()) * self._win_score
+
     def __repr__(self):
         text = ''
         for i in self._STR_ROW_RANGE:
@@ -176,10 +188,48 @@ class Board:
                         return turn
             return self.EMPTY
 
+    def winner_series(self, turn=None):
+        if self.is_empty():
+            return []
+        elif turn is None:
+            result = []
+            for turn in self.TURNS:
+                result = self.winner(turn)
+                if result != self.EMPTY:
+                    break
+            return result
+        else:
+            result = []
+            matrix = self.matrix
+            rows, cols = self.rows, self.cols
+            win_len = self.win_len
+            # check diagonals
+            for i in range(rows - win_len + 1):
+                for j in range(cols - win_len + 1):
+                    square = matrix[i:i + win_len, j:j + win_len]
+                    if np.all(np.diag(np.fliplr(square)) == turn):
+                        result.append(
+                            ((i + win_len - 1, j), (i, j + win_len - 1)))
+                    if np.all(np.diag(square) == turn):
+                        result.append(
+                            ((i, j), (i + win_len - 1, j + win_len - 1)))
+            # check horizontal
+            for i in range(rows):
+                for j in range(cols - win_len + 1):
+                    if np.all(matrix[i, j:j + win_len] == turn):
+                        result.append(((i, j), (i, j + win_len - 1)))
+            # check vertical
+            for i in range(rows - win_len + 1):
+                for j in range(cols):
+                    if np.all(matrix[i:i + win_len, j] == turn):
+                        result.append(((i, j), (i + win_len - 1, j)))
+            return result
+
     def get_victory_coords(self):
         if self.winner(None):
             pass
         raise NotImplementedError
 
     def get_score(self):
-        return self.num_moves() * (-1) ** self.turn
+        return (self.max_num_moves - self.num_moves()) \
+               * (1 if self.turn == self.TURNS[0] else -1)

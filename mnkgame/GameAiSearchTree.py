@@ -23,12 +23,12 @@ def negamax(
         max_duration=10.0):
     clock = time.time()
     if max_duration < 0:
-        depth = 0
+        return np.nan
     if board.winner(board.turn) == board.turn:
-        return -np.inf
-    if depth == 0 or board.is_full():
-        return board.get_score() * (-1) ** board.turn
-    best_value = -np.inf
+        return -board.win_score
+    elif depth == 0 or board.is_full():
+        return -board.get_score(board.turn)
+    best_value = -board.win_score()
     for coord in board.sorted_moves():
         board.do_move(coord)
         value = -negamax(
@@ -46,13 +46,13 @@ def negamax_alphabeta(
         beta=np.inf,
         soft=True):
     clock = time.time()
-    if max_duration < 0:
-        depth = 0
+    if max_duration < 0.0:
+        return np.nan
     if board.winner(board.turn) == board.turn:
-        return -np.inf
-    if depth == 0 or board.is_full():
-        return board.get_score()
-    best_value = -np.inf
+        return -board.win_score
+    elif depth == 0 or board.is_full():
+        return -board.get_score()
+    best_value = -board.win_score
     for coord in board.sorted_moves():
         board.do_move(coord)
         value = -negamax_alphabeta(
@@ -76,13 +76,13 @@ def negamax_alphabeta_jit(
         beta=np.inf,
         soft=True):
     clock = time.time()
-    if max_duration < 0:
-        depth = 0
+    if max_duration < 0.0:
+        return np.nan
     if board.winner(board.turn) == board.turn:
-        return -np.inf
-    if depth == 0 or board.is_full():
-        return board.get_score()
-    best_value = -np.inf
+        return -board.win_score
+    elif depth == 0 or board.is_full():
+        return -board.get_score()
+    best_value = -board.win_score
     for coord in board.sorted_moves():
         board.do_move(coord)
         value = -negamax_alphabeta_jit(
@@ -106,13 +106,13 @@ def negamax_alphabeta_pvs(
         soft=True,
         is_first=True):
     clock = time.time()
-    if max_duration < 0:
+    if max_duration < 0.0:
         depth = 0
     if board.winner(board.turn) == board.turn:
-        return -np.inf
+        return -board.win_score
     if depth == 0 or board.is_full():
         return board.get_score()
-    best_value = -np.inf
+    best_value = -board.win_score
     for coord in board.sorted_moves():
         board.do_move(coord)
         if is_first:
@@ -150,7 +150,7 @@ def negamax_alphabeta_hashing(
     # todo: fix hashing
     clock = time.time()
     if max_duration < 0:
-        depth = 0
+        return np.nan
     if hashtable is None:
         hashtable = {}
     if (board, depth) in hashtable:
@@ -183,11 +183,12 @@ class GameAiSearchTree(GameAi):
             self,
             board=None,
             max_duration=10.0,
-            method='negamax_alphabeta_jit',
+            method='negamax_alphabeta',
             method_kws=None,
             randomize=False,
             max_depth=None,
             verbose=True,
+            callback=True,
             *_args,
             **_kws):
         if method in globals():
@@ -205,16 +206,17 @@ class GameAiSearchTree(GameAi):
         elif max_depth < 0:
             max_depth = board.num_moves_left() - (max_depth + 1)
         if verbose:
-            print(
-                f'Method: {method},'
-                f' Min. Depth: {board.win_len},'
-                f' Max. Depth: {max(board.win_len, max_depth)}')
+            feedback = ', '.join([
+                f'Method: {method}'
+                f'Min. Depth: {board.win_len}'
+                f'Max. Depth: {max(board.win_len, max_depth)}'])
         clock = time.time()
         choices = board.sorted_moves()
-        for depth in range(board.win_len, max(board.win_len, max_depth) + 1):
-            best_val = -np.inf
+        best_val = -np.inf
+        for depth in range(1, max(board.win_len, max_depth) + 1):
             new_choices = []
-            begin_time = time.time()
+            depth_clock = time.time()
+            val = -np.inf
             for coord in board.sorted_moves():
                 board.do_move(coord)
                 val = -func(
@@ -226,13 +228,17 @@ class GameAiSearchTree(GameAi):
                     new_choices = [coord]
                 elif val == best_val and coord not in new_choices:
                     new_choices.append(coord)
-            if verbose:
-                print(
-                    f'Depth: {depth}, Best: {best_val},'
-                    f' Move: {choices}, Time: {time.time() - begin_time:.3f}')
-            if max_duration - (time.time() - clock) > 0:
+            if not np.isnan(val) and new_choices:
                 choices = new_choices
-            else:
+            if verbose:
+                feedback = ', '.join([
+                    f'Depth: {depth}', f'Best: {best_val}',
+                    f'Move(s): {choices}',
+                    f'Time: {time.time() - depth_clock:.3f}'])
+                print(feedback)
+            if callable(callback):
+                callback(**locals())
+            if max_duration - (time.time() - clock) < 0.0:
                 break
         if randomize and len(choices) > 1:
             return random.choice(choices)
