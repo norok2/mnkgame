@@ -8,12 +8,18 @@ import multiprocessing
 import collections
 import json
 
-import pytk.util
-import pytk.widgets
-from pytk import tk, ttk
-from pytk import messagebox
-from pytk import filedialog
-from pytk import simpledialog
+try:
+    import tkinter as tk
+    import tkinter.ttk as ttk
+    import tkinter.messagebox as messagebox
+    import tkinter.filedialog as filedialog
+    import tkinter.simpledialog as simpledialog
+except ImportError:
+    import Tkinter as tk
+    import ttk
+    import tkMessageBox as messagebox
+    import tkFileDialog as filedialog
+    import tkSimpleDialog as simpledialog
 
 from mnkgame import D_VERB_LVL
 from mnkgame import msg
@@ -84,17 +90,418 @@ def save_config(
         json.dump(config, cfg_file, sort_keys=True, indent=4)
 
 
+import os
+import warnings
+
+from pytk import tk
+from pytk import msg, dbg
+
+
 # ======================================================================
-class WinAbout(pytk.Window):
+def has_decorator(
+        text,
+        pre_decor='"',
+        post_decor='"'):
+    """
+    Determine if a string is delimited by some characters (decorators).
+
+    Args:
+        text (str): The text input string.
+        pre_decor (str): initial string decorator.
+        post_decor (str): final string decorator.
+
+    Returns:
+        has_decorator (bool): True if text is delimited by the specified chars.
+
+    Examples:
+        >>> has_decorator('"test"')
+        True
+        >>> has_decorator('"test')
+        False
+        >>> has_decorator('<test>', '<', '>')
+        True
+    """
+    return text.startswith(pre_decor) and text.endswith(post_decor)
+
+
+# ======================================================================
+def strip_decorator(
+        text,
+        pre_decor='"',
+        post_decor='"'):
+    """
+    Strip initial and final character sequences (decorators) from a string.
+
+    Args:
+        text (str): The text input string.
+        pre_decor (str): initial string decorator.
+        post_decor (str): final string decorator.
+
+    Returns:
+        text (str): the text without the specified decorators.
+
+    Examples:
+        >>> strip_decorator('"test"')
+        'test'
+        >>> strip_decorator('"test')
+        'test'
+        >>> strip_decorator('<test>', '<', '>')
+        'test'
+    """
+    begin = len(pre_decor) if text.startswith(pre_decor) else None
+    end = -len(post_decor) if text.endswith(post_decor) else None
+    return text[begin:end]
+
+
+# ======================================================================
+def auto_convert(
+        text,
+        pre_decor=None,
+        post_decor=None):
+    """
+    Convert value to numeric if possible, or strip delimiters from string.
+
+    Args:
+        text (str|int|float|complex): The text input string.
+        pre_decor (str): initial string decorator.
+        post_decor (str): final string decorator.
+
+    Returns:
+        val (int|float|complex): The numeric value of the string.
+
+    Examples:
+        >>> auto_convert('<100>', '<', '>')
+        100
+        >>> auto_convert('<100.0>', '<', '>')
+        100.0
+        >>> auto_convert('100.0+50j')
+        (100+50j)
+        >>> auto_convert('1e3')
+        1000.0
+        >>> auto_convert(1000)
+        1000
+        >>> auto_convert(1000.0)
+        1000.0
+    """
+    if isinstance(text, str):
+        if pre_decor and post_decor and \
+                has_decorator(text, pre_decor, post_decor):
+            text = strip_decorator(text, pre_decor, post_decor)
+        try:
+            val = int(text)
+        except (TypeError, ValueError):
+            try:
+                val = float(text)
+            except (TypeError, ValueError):
+                try:
+                    val = complex(text)
+                except (TypeError, ValueError):
+                    val = text
+    else:
+        val = text
+    return val
+
+
+# ======================================================================
+def get_curr_screen_geometry():
+    """
+    Workaround to get the size of the current screen in a multi-screen setup.
+
+    Returns:
+        geometry (str): The standard Tk geometry string.
+            [width]x[height]+[left]+[top]
+    """
+    temp = tk.Tk()
+    temp.update()
+    temp.attributes('-fullscreen', True)
+    temp.state('iconic')
+    geometry = temp.winfo_geometry()
+    temp.destroy()
+    return geometry
+
+
+# ======================================================================
+def set_icon(
+        root,
+        basename,
+        dirpath=os.path.abspath(os.path.dirname(__file__))):
+    basepath = os.path.join(dirpath, basename) if dirpath else basename
+
+    # first try modern file formats
+    for file_ext in ['png', 'gif']:
+        if not basepath.endswith('.' + file_ext):
+            filepath = basepath + '.' + file_ext
+        else:
+            filepath = basepath
+        try:
+            icon = tk.PhotoImage(file=filepath)
+            root.tk.call('wm', 'iconphoto', root._w, icon)
+        except tk.TclError:
+            warnings.warn('E: Could not use icon `{}`'.format(filepath))
+        else:
+            return
+
+    # fall back to ico/xbm format
+    tk_sys = root.tk.call('tk', 'windowingsystem')
+    if tk_sys.startswith('win'):
+        filepath = basepath + '.ico'
+    else:  # if tk_sys == 'x11':
+        filepath = '@' + basepath + '.xbm'
+    try:
+        root.iconbitmap(filepath)
+    except tk.TclError:
+        warnings.warn('E: Could not use icon `{}`.'.format(filepath))
+    else:
+        return
+
+
+# ======================================================================
+def center(target, parent=None):
+    target.update_idletasks()
+    if parent is None:
+        parent_geom = Geometry(get_curr_screen_geometry())
+    else:
+        parent.update_idletasks()
+        parent_geom = Geometry(parent.winfo_geometry())
+    target_geom = Geometry(target.winfo_geometry()).set_to_center(parent_geom)
+    target.geometry(str(target_geom))
+
+
+# ======================================================================
+def set_aspect(target, parent, aspect=1.0):
+    def enforce_aspect_ratio(event):
+        width = event.width
+        height = int(event.width / aspect)
+        if height > event.height:
+            height = event.height
+            width = int(event.height * aspect)
+        target.place(
+            in_=parent, x=0, y=0, width=width, height=height)
+
+    parent.bind("<Configure>", enforce_aspect_ratio)
+
+
+# ======================================================================
+class Geometry(object):
+    def __init__(
+            self,
+            text=None,
+            width=0,
+            height=0,
+            left=0,
+            top=0):
+        """
+        Generate a geometry object from the standard Tk geometry string.
+
+        Args:
+            text (str): The standard Tk geometry string.
+                If str, Must be: `[width]x[height]+[left]+[top]` (integers).
+            width (int): The width value.
+                If this can be extracted from `text`, this parameter is
+                ignored.
+            height (int): The height value.
+                If this can be extracted from `text`, this parameter is
+                ignored.
+            left (int): The left value.
+                If this can be extracted from `text`, this parameter is
+                ignored.
+            top (int): The top value.
+                If this can be extracted from `text`, this parameter is
+                ignored.
+        Returns:
+            None.
+
+        Examples:
+            >>> print(Geometry('1x2+3+4'))
+            1x2+3+4
+            >>> print(Geometry())
+            0x0+0+0
+            >>> print(Geometry('1x2'))
+            1x2+0+0
+            >>> print(Geometry('+1+2'))
+            0x0+1+2
+            >>> print(Geometry('1+2+3'))
+            1x0+2+3
+            >>> print(Geometry('1x2+1'))
+            1x2+1+0
+        """
+        self.width, self.height, self.left, self.top = width, height, left, top
+        if isinstance(text, str):
+            tokens1 = text.split('+')
+            tokens2 = tokens1[0].split('x')
+            try:
+                self.width = int(tokens2[0])
+            except (ValueError, IndexError):
+                pass
+            try:
+                self.height = int(tokens2[1])
+            except (ValueError, IndexError):
+                pass
+            try:
+                self.left = int(tokens1[1])
+            except (ValueError, IndexError):
+                pass
+            try:
+                self.top = int(tokens1[2])
+            except (ValueError, IndexError):
+                pass
+
+    def __iter__(self):
+        k = 'w', 'h', 'l', 't'
+        v = self.width, self.height, self.left, self.top
+        for k, v, in zip(k, v):
+            yield k, v
+
+    def __str__(self):
+        return '{w:d}x{h:d}+{l:d}+{t:d}'.format(**dict(self.items()))
+
+    def __repr__(self):
+        return ', '.join([k + '=' + str(v) for k, v in self])
+
+    items = __iter__
+
+    def values(self):
+        for k, v in self:
+            yield v
+
+    def keys(self):
+        for k, v in self:
+            yield k
+
+    def set_to_center(self, parent):
+        """
+        Update the geometry to be centered with respect to a container.
+
+        Args:
+            parent (Geometry): The geometry of the container.
+
+        Returns:
+            geometry (Geometry): The updated geometry.
+        """
+        self.left = parent.width // 2 - self.width // 2 + parent.left
+        self.top = parent.height // 2 - self.height // 2 + parent.top
+        return self
+
+
+# import tkinter as tk
+#
+#
+# def set_aspect(target, parent, aspect=1.0):
+#     def enforce_aspect_ratio(event):
+#         width = event.width
+#         height = int(event.width / aspect)
+#         if height > event.height:
+#             height = event.height
+#             width = int(event.height * aspect)
+#         target.place(
+#             in_=parent, x=0, y=0, width=width, height=height)
+#
+#     parent.bind("<Configure>", enforce_aspect_ratio)
+#
+#
+# num_cols = 7
+# num_rows = 6
+# square_size = 100
+#
+# root = tk.Tk()
+# root.minsize(num_cols * square_size // 2, num_rows * square_size // 2)
+# root.rowconfigure(0, weight=1)
+# root.columnconfigure(0, weight=1)
+# grid = tk.Frame(root, width=600, height=400, background='black')
+# grid.grid(row=0, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
+#
+#
+#
+# # place in the middle
+# # widget.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+#
+#
+# class BoardCell(tk.Canvas):
+#     def __init__(self, parent, **_kws):
+#         if 'highlightthickness' not in _kws:
+#             _kws['highlightthickness'] = 0
+#         tk.Canvas.__init__(self, parent, **_kws)
+#         self.drawings = []
+#         self.content = None
+#         self.height = self.winfo_reqheight()
+#         self.width = self.winfo_reqwidth()
+#         self.bind('<Button-1>', self.on_click)
+#         self.bind('<Double-Button-1>', self.clear)
+#         self.turn = turn
+#
+#     def on_resize(self, event):
+#         self.delete('all')
+#         self.width = event.width
+#         self.height = event.height
+#         if self.content == 'o':
+#             self.draw_o()
+#         elif self.content == 'x':
+#             self.draw_x()
+#
+#     def clear(self, event):
+#         self.delete('all')
+#         self.content= None
+#         turn.pop()
+#
+#     def draw_o(self, color='red', weight=0.175, k=0.9):
+#         self.content = 'o'
+#         linewidth = (weight * (self.height + self.width)) / 2
+#         self.drawings = [
+#             self.create_oval(
+#                 self.width * (1 - k), self.height * (1 - k),
+#                 self.width * k, self.height * k,
+#                 outline=color, width=linewidth)]
+#
+#     def draw_x(self, color='blue', weight=0.175, k=0.9):
+#         self.content = 'x'
+#         linewidth = (weight * (self.height + self.width)) / 2
+#         self.drawings = [
+#             self.create_line(
+#                 self.width * (1 - k), self.height * (1 - k),
+#                 self.width * k, self.height * k,
+#                 fill=color, width=linewidth),
+#             self.create_line(
+#                 self.width * (1 - k), self.height * k,
+#                 self.width * k, self.height * (1 - k),
+#                 fill=color, width=linewidth)]
+#
+#     def on_click(self, event):
+#         turn.append(None)
+#         if not self.content:
+#             if len(turn) % 2:
+#                 self.draw_x()
+#             else:
+#                 self.draw_o()
+#
+# turn = []
+# for i in range(num_cols):
+#     for j in range(num_rows):
+#         cvs = BoardCell(grid, width=square_size, height=square_size, background='white')
+# #         if (i + j) % 2 == 0:
+# #             cvs.draw_o()
+# #         else:
+# #             cvs.draw_x()
+#         cvs.grid(column=i, row=j, sticky=tk.N+tk.S+tk.E+tk.W)
+#
+#
+# for i in range(num_cols):
+#     grid.columnconfigure(i, weight=1)
+# for j in range(num_rows):
+#     grid.rowconfigure(j, weight=1)
+#
+# root.mainloop()
+
+# ======================================================================
+class WinAbout(tk.Toplevel):
     def __init__(self, parent):
         self.win = super(WinAbout, self).__init__(parent)
         self.transient(parent)
         self.parent = parent
         self.title('About {}'.format(INFO['name']))
         self.resizable(False, False)
-        self.frm = pytk.widgets.Frame(self)
+        self.frm = ttk.Frame(self)
         self.frm.pack(fill=tk.BOTH, expand=True)
-        self.frmMain = pytk.widgets.Frame(self.frm)
+        self.frmMain = ttk.Frame(self.frm)
         self.frmMain.pack(fill=tk.BOTH, padx=1, pady=1, expand=True)
 
         about_txt = '\n'.join((
@@ -105,25 +512,25 @@ class WinAbout(pytk.Window):
                 INFO['copyright'], INFO['author'], INFO['notice'])
         ))
         msg(about_txt)
-        self.lblInfo = pytk.widgets.Label(
+        self.lblInfo = ttk.Label(
             self.frmMain, text=about_txt, anchor=tk.CENTER,
             background='#333', foreground='#ccc', font='TkFixedFont')
         self.lblInfo.pack(padx=8, pady=8, ipadx=8, ipady=8)
 
-        self.btnClose = pytk.widgets.Button(
+        self.btnClose = ttk.Button(
             self.frmMain, text='Close', command=self.destroy)
         self.btnClose.pack(side=tk.BOTTOM, padx=8, pady=8)
         self.bind('<Return>', self.destroy)
         self.bind('<Escape>', self.destroy)
 
-        pytk.util.center(self, self.parent)
+        center(self, self.parent)
 
         self.grab_set()
         self.wait_window(self)
 
 
 # ======================================================================
-class WinSettings(pytk.Window):
+class WinSettings(tk.Toplevel):
     def __init__(self, parent, app):
         self.settings = collections.OrderedDict((
             ('use_mp', {'label': 'Use parallel processing', 'dtype': bool, }),
@@ -148,9 +555,9 @@ class WinSettings(pytk.Window):
         self.parent = parent
         self.app = app
         self.title('{} Advanced Settings'.format(INFO['name']))
-        self.frm = pytk.widgets.Frame(self)
+        self.frm = ttk.Frame(self)
         self.frm.pack(fill=tk.BOTH, expand=True)
-        self.frmMain = pytk.widgets.Frame(self.frm)
+        self.frmMain = ttk.Frame(self.frm)
         self.frmMain.pack(fill=tk.BOTH, padx=8, pady=8, expand=True)
 
         self.frmSpacers = []
@@ -158,53 +565,53 @@ class WinSettings(pytk.Window):
         self.wdgOptions = {}
         for name, info in self.settings.items():
             if info['dtype'] == bool:
-                chk = pytk.widgets.Checkbutton(
+                chk = ttk.Checkbutton(
                     self.frmMain, text=info['label'])
                 chk.pack(fill=tk.X, padx=1, pady=1)
                 chk.set_val(info['default'])
                 self.wdgOptions[name] = {'chk': chk}
             elif info['dtype'] == int:
-                frm = pytk.widgets.Frame(self.frmMain)
+                frm = ttk.Frame(self.frmMain)
                 frm.pack(fill=tk.X, padx=1, pady=1)
-                lbl = pytk.widgets.Label(frm, text=info['label'])
+                lbl = ttk.Label(frm, text=info['label'])
                 lbl.pack(side=tk.LEFT, fill=tk.X, padx=1, pady=1, expand=True)
-                spb = pytk.widgets.Spinbox(frm, **info['values'])
+                spb = ttk.Spinbox(frm, **info['values'])
                 spb.set_val(info['default'])
                 spb.pack(
                     side=tk.LEFT, fill=tk.X, anchor=tk.W, padx=1, pady=1)
                 self.wdgOptions[name] = {'frm': frm, 'lbl': lbl, 'spb': spb}
             elif info['dtype'] == tuple:
-                frm = pytk.widgets.Frame(self.frmMain)
+                frm = ttk.Frame(self.frmMain)
                 frm.pack(fill=tk.X, padx=1, pady=1)
-                lbl = pytk.widgets.Label(frm, text=info['label'])
+                lbl = ttk.Label(frm, text=info['label'])
                 lbl.pack(side=tk.LEFT, fill=tk.X, padx=1, pady=1, expand=True)
-                lst = pytk.widgets.Listbox(frm, values=info['values'])
+                lst = ttk.Listbox(frm, values=info['values'])
                 lst.set_val(info['default'])
                 lst.pack(
                     side=tk.LEFT, fill=tk.X, anchor=tk.W, padx=1, pady=1)
                 self.wdgOptions[name] = {'frm': frm, 'lbl': lbl, 'lst': lst}
 
-        self.frmButtons = pytk.widgets.Frame(self.frmMain)
+        self.frmButtons = ttk.Frame(self.frmMain)
         self.frmButtons.pack(side=tk.BOTTOM, padx=4, pady=4)
-        spacer = pytk.widgets.Frame(self.frmButtons)
+        spacer = ttk.Frame(self.frmButtons)
         spacer.pack(side=tk.LEFT, anchor='e', expand=True)
         self.frmSpacers.append(spacer)
-        self.btnOK = pytk.widgets.Button(
+        self.btnOK = ttk.Button(
             self.frmButtons, text='OK', compound=tk.LEFT,
             command=self.ok)
         self.btnOK.pack(side=tk.LEFT, padx=4, pady=4)
-        self.btnReset = pytk.widgets.Button(
+        self.btnReset = ttk.Button(
             self.frmButtons, text='Reset', compound=tk.LEFT,
             command=self.reset)
         self.btnReset.pack(side=tk.LEFT, padx=4, pady=4)
-        self.btnCancel = pytk.widgets.Button(
+        self.btnCancel = ttk.Button(
             self.frmButtons, text='Cancel', compound=tk.LEFT,
             command=self.cancel)
         self.btnCancel.pack(side=tk.LEFT, padx=4, pady=4)
         self.bind('<Return>', self.ok)
         self.bind('<Escape>', self.cancel)
 
-        pytk.util.center(self, self.parent)
+        center(self, self.parent)
 
         self.grab_set()
         self.wait_window(self)
@@ -251,7 +658,7 @@ class WinSettings(pytk.Window):
 
 
 # ======================================================================
-class WinMain(pytk.widgets.Frame):
+class WinMain(ttk.Frame):
     def __init__(self, parent, *_args, **_kws):
         super(WinMain, self).__init__()
 
@@ -278,14 +685,13 @@ class WinMain(pytk.widgets.Frame):
         else:
             self.cfg_filepath = os.path.join(_PATHS['usr_cfg'], CFG_FILENAME)
 
-
         # :: initialization of the UI
-        pytk.widgets.Frame.__init__(self, parent)
+        ttk.Frame.__init__(self, parent)
         self.parent = parent
         self.parent.title('(m,n,k)+g-Game')
         self.parent.protocol('WM_DELETE_WINDOW', self.actionExit)
 
-        self.style = pytk.Style()
+        self.style = ttk.Style()
         # print(self.style.theme_names())
         self.style.theme_use(self.cfg['gui_style_tk'])
         self.pack(fill=tk.BOTH, expand=True)
@@ -293,19 +699,20 @@ class WinMain(pytk.widgets.Frame):
         self._make_menu()
 
         # :: define UI items
-        self.frmMain = pytk.widgets.Frame(self)
+        self.frmMain = ttk.Frame(self)
         self.frmMain.pack(fill=tk.BOTH, padx=2, pady=2, expand=True)
-        self.frmBoard = pytk.widgets.Frame(self.frmMain)
+        self.frmBoard = ttk.Frame(self.frmMain)
 
         self.cvsBoard = []
         for i in range(self.board.rows):
             for j in range(self.board.cols):
                 canvas = tk.Canvas(
-                    self.frmBoard, width=50, height=50, borderwidth=2, highlightthickness=0, bg='black')
+                    self.frmBoard, width=50, height=50, borderwidth=2,
+                    highlightthickness=0, bg='black')
                 canvas.grid(row=i, column=j)
                 self.cvsBoard.append(canvas)
 
-        pytk.util.center(self.parent)
+        center(self.parent)
         # self._cfg_to_ui()
 
     # --------------------------------
@@ -538,8 +945,8 @@ class WinMain(pytk.widgets.Frame):
 
 # ======================================================================
 def mnk_game_gui(*_args, **_kws):
-    root = pytk.tk.Tk()
+    root = tk.Tk()
     app = WinMain(root, *_args, **_kws)
     resources_path = PATH['resources']
-    pytk.util.set_icon(root, 'icon', resources_path)
+    set_icon(root, 'icon', resources_path)
     root.mainloop()
