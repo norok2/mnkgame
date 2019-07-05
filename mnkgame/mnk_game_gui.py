@@ -263,17 +263,19 @@ def set_icon(
 
 
 # ======================================================================
-def center(target, parent=None, geometry=None):
+def center(target, reference=None):
     target.update_idletasks()
-    if parent is None and geometry is None:
+    if reference is None:
         geometry = get_curr_screen_geometry()
-    elif geometry is None:
-        parent.update_idletasks()
-        geometry = parent.winfo_geometry()
-    if isinstance(geometry, str):
+    elif not isinstance(reference, (str, Geometry)):
+        reference.update_idletasks()
+        geometry = reference.winfo_geometry()
+    else:
+        geometry = reference
+    if isinstance(reference, str):
         geometry = Geometry(geometry)
-    target_geom = Geometry(target.winfo_geometry()).set_to_center(geometry)
-    target.geometry(str(target_geom))
+    target_geometry = Geometry(target.winfo_geometry())
+    target.geometry(str(target_geometry.set_to_center(geometry)))
 
 
 # ======================================================================
@@ -803,7 +805,7 @@ class WinMain(ttk.Frame):
             self.cols * self.init_size // 5,
             self.rows * self.init_size // 5 + 4 * menu_font.actual()['size'])
 
-        center(self.parent, None, self.screen_size)
+        center(self.parent, self.screen_size)
 
     # --------------------------------
     def _ui_to_cfg(self):
