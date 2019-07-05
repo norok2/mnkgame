@@ -7,10 +7,12 @@ import os
 import multiprocessing
 import collections
 import json
+import copy
 
 try:
     import tkinter as tk
     import tkinter.ttk as ttk
+    import tkinter.font
     import tkinter.messagebox as messagebox
     import tkinter.filedialog as filedialog
     import tkinter.simpledialog as simpledialog
@@ -20,8 +22,13 @@ except ImportError:
     import tkMessageBox as messagebox
     import tkFileDialog as filedialog
     import tkSimpleDialog as simpledialog
+    import tkFont
 
-from mnkgame import D_VERB_LVL
+    tk.font = tkFont
+
+import numpy as np
+
+from mnkgame import D_VERB_LVL, VERB_LVL, VERB_LVL_NAMES
 from mnkgame import msg
 from mnkgame import INFO, PATH
 from mnkgame import print_greetings, prettify, MY_GREETINGS
@@ -256,14 +263,16 @@ def set_icon(
 
 
 # ======================================================================
-def center(target, parent=None):
+def center(target, parent=None, geometry=None):
     target.update_idletasks()
-    if parent is None:
-        parent_geom = Geometry(get_curr_screen_geometry())
-    else:
+    if parent is None and geometry is None:
+        geometry = get_curr_screen_geometry()
+    elif geometry is None:
         parent.update_idletasks()
-        parent_geom = Geometry(parent.winfo_geometry())
-    target_geom = Geometry(target.winfo_geometry()).set_to_center(parent_geom)
+        geometry = parent.winfo_geometry()
+    if isinstance(geometry, str):
+        geometry = Geometry(geometry)
+    target_geom = Geometry(target.winfo_geometry()).set_to_center(geometry)
     target.geometry(str(target_geom))
 
 
@@ -383,113 +392,190 @@ class Geometry(object):
         return self
 
 
-# import tkinter as tk
-#
-#
-# def set_aspect(target, parent, aspect=1.0):
-#     def enforce_aspect_ratio(event):
-#         width = event.width
-#         height = int(event.width / aspect)
-#         if height > event.height:
-#             height = event.height
-#             width = int(event.height * aspect)
-#         target.place(
-#             in_=parent, x=0, y=0, width=width, height=height)
-#
-#     parent.bind("<Configure>", enforce_aspect_ratio)
-#
-#
-# num_cols = 7
-# num_rows = 6
-# square_size = 100
-#
-# root = tk.Tk()
-# root.minsize(num_cols * square_size // 2, num_rows * square_size // 2)
-# root.rowconfigure(0, weight=1)
-# root.columnconfigure(0, weight=1)
-# grid = tk.Frame(root, width=600, height=400, background='black')
-# grid.grid(row=0, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
-#
-#
-#
-# # place in the middle
-# # widget.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
-#
-#
-# class BoardCell(tk.Canvas):
-#     def __init__(self, parent, **_kws):
-#         if 'highlightthickness' not in _kws:
-#             _kws['highlightthickness'] = 0
-#         tk.Canvas.__init__(self, parent, **_kws)
-#         self.drawings = []
-#         self.content = None
-#         self.height = self.winfo_reqheight()
-#         self.width = self.winfo_reqwidth()
-#         self.bind('<Button-1>', self.on_click)
-#         self.bind('<Double-Button-1>', self.clear)
-#         self.turn = turn
-#
-#     def on_resize(self, event):
-#         self.delete('all')
-#         self.width = event.width
-#         self.height = event.height
-#         if self.content == 'o':
-#             self.draw_o()
-#         elif self.content == 'x':
-#             self.draw_x()
-#
-#     def clear(self, event):
-#         self.delete('all')
-#         self.content= None
-#         turn.pop()
-#
-#     def draw_o(self, color='red', weight=0.175, k=0.9):
-#         self.content = 'o'
-#         linewidth = (weight * (self.height + self.width)) / 2
-#         self.drawings = [
-#             self.create_oval(
-#                 self.width * (1 - k), self.height * (1 - k),
-#                 self.width * k, self.height * k,
-#                 outline=color, width=linewidth)]
-#
-#     def draw_x(self, color='blue', weight=0.175, k=0.9):
-#         self.content = 'x'
-#         linewidth = (weight * (self.height + self.width)) / 2
-#         self.drawings = [
-#             self.create_line(
-#                 self.width * (1 - k), self.height * (1 - k),
-#                 self.width * k, self.height * k,
-#                 fill=color, width=linewidth),
-#             self.create_line(
-#                 self.width * (1 - k), self.height * k,
-#                 self.width * k, self.height * (1 - k),
-#                 fill=color, width=linewidth)]
-#
-#     def on_click(self, event):
-#         turn.append(None)
-#         if not self.content:
-#             if len(turn) % 2:
-#                 self.draw_x()
-#             else:
-#                 self.draw_o()
-#
-# turn = []
-# for i in range(num_cols):
-#     for j in range(num_rows):
-#         cvs = BoardCell(grid, width=square_size, height=square_size, background='white')
-# #         if (i + j) % 2 == 0:
-# #             cvs.draw_o()
-# #         else:
-# #             cvs.draw_x()
-#         cvs.grid(column=i, row=j, sticky=tk.N+tk.S+tk.E+tk.W)
-#
-#
-# for i in range(num_cols):
-#     grid.columnconfigure(i, weight=1)
-# for j in range(num_rows):
-#     grid.rowconfigure(j, weight=1)
-#
-# root.mainloop()
+# ======================================================================
+class FrameBoard(tk.Frame):
+    def __init__(
+            self, parent, cell_size=100, border=0.06,
+            **_kws):
+        tk.Frame.__init__(
+            self, parent, highlightthickness=10, highlightbackground='black')
+        self.grid(row=0, column=0, sticky=tk.N + tk.S + tk.E + tk.W)
+        self.parent = parent
+        self.board = self.parent.board
+        self.history = self.parent.history
+        self.border = border
+        self.height = self.winfo_height()
+        self.width = self.winfo_width()
+        self.rows = self.parent.board.rows
+        self.cols = self.parent.board.cols
+        self.enabled = True
+        linewidth = 0.5 * (self.border * (
+                (self.height / self.rows) + (self.width / self.cols)))
+        self.config(dict(highlightthickness=linewidth))
+        parent.rowconfigure(0, weight=1)
+        parent.columnconfigure(0, weight=1)
+        self.cvsMatrix = np.zeros((self.rows, self.cols), dtype='object')
+        for i in range(self.rows):
+            for j in range(self.cols):
+                cvs = CanvasCell(
+                    self, i, j,
+                    width=cell_size, height=cell_size,
+                    background='white', highlightbackground='black',
+                    border=border / 2)
+                cvs.grid(column=j, row=i, sticky=tk.N + tk.S + tk.E + tk.W)
+                self.cvsMatrix[i, j] = cvs
+        for k in range(self.rows):
+            self.rowconfigure(k, weight=1)
+        for k in range(self.cols):
+            self.columnconfigure(k, weight=1)
+        self.bind('<Configure>', self.on_resize)
+
+    def on_resize(self, event=None):
+        self.width = event.width
+        self.height = event.height
+        linewidth = 0.5 * (self.border * (
+                (self.height / self.rows) + (self.width / self.cols)))
+        self.config(dict(highlightthickness=linewidth))
+
+    def reset(self, event=None):
+        for i in range(self.rows):
+            for j in range(self.cols):
+                self.cvsMatrix[i, j].clear()
+        self.unfreeze()
+        self.refresh()
+
+    def refresh(self, event=None):
+        for i in range(self.rows):
+            for j in range(self.cols):
+                if self.board.matrix[i, j] == self.board.TURNS[0] \
+                        and not self.cvsMatrix[i, j].content:
+                    self.cvsMatrix[i, j].draw_x()
+                elif self.board.matrix[i, j] == self.board.TURNS[1] \
+                        and not self.cvsMatrix[i, j].content:
+                    self.cvsMatrix[i, j].draw_o()
+                elif self.board.matrix[i, j] == self.board.EMPTY \
+                        and self.cvsMatrix[i, j].content:
+                    self.cvsMatrix[i, j].clear()
+
+    def freeze(self, event=None):
+        self.enabled = False
+
+    def unfreeze(self, event=None):
+        self.enabled = True
+
+    def show_wins(self, event=None):
+        winning_series = self.board.winning_series()
+        for winning_serie in winning_series:
+            coords = self.board.extrema_to_coords(*winning_serie)
+            for (i, j) in coords:
+                self.cvsMatrix[i, j].highlight()
+
+    def hide_wins(self, event=None):
+        for i in range(self.rows):
+            for j in range(self.cols):
+                self.cvsMatrix[i, j].normal()
+
+
+# ======================================================================
+class CanvasCell(tk.Canvas):
+    def __init__(self, parent, row, col, **_kws):
+        self.parent = parent
+        self.board = self.parent.board
+        self.history = self.parent.history
+        self.row = row
+        self.col = col
+        self.background = _kws['background']
+        self.hover_background = 'cyan'
+        self.highlight_background = 'yellow'
+        self.border = _kws.pop('border')
+        self.height = _kws['height']
+        self.width = _kws['width']
+        linewidth = (self.border * (self.height + self.width)) / 2
+        _kws['highlightthickness'] = linewidth
+        tk.Canvas.__init__(self, parent, **_kws)
+        self.drawings = []
+        self.content = None
+        self.bind('<Button-1>', self.on_click)
+        self.bind('<Button-3>', self.clear)
+        self.bind('<Configure>', self.on_resize)
+        self.bind('<Enter>', self.on_enter)
+        self.bind('<Leave>', self.on_leave)
+
+    def on_resize(self, event=None):
+        self.delete('all')
+        self.width = event.width
+        self.height = event.height
+        linewidth = (self.border * (self.height + self.width)) / 2
+        self.config(dict(highlightthickness=linewidth))
+        if self.content == 'o':
+            self.draw_o()
+        elif self.content == 'x':
+            self.draw_x()
+
+    def on_enter(self, event=None):
+        if self.parent.enabled:
+            if not hasattr(self.board, 'has_gravity'):
+                self.config(background=self.hover_background)
+            else:
+                for i in range(self.parent.rows):
+                    self.parent.cvsMatrix[i, self.col].config(
+                        background=self.hover_background)
+
+    def on_leave(self, event=None):
+        if self.parent.enabled:
+            if not hasattr(self.board, 'has_gravity'):
+                self.normal()
+            else:
+                for i in range(self.parent.rows):
+                    self.parent.cvsMatrix[i, self.col].normal()
+
+    def clear(self, event=None):
+        if self.content:
+            self.delete('all')
+            self.content = None
+            self.config(background=self.background)
+
+    def draw_o(self, color='red', weight=0.175, k=0.8):
+        self.content = 'o'
+        linewidth = (weight * (self.height + self.width)) / 2
+        self.drawings = [
+            self.create_oval(
+                self.width * (1 - k), self.height * (1 - k),
+                self.width * k, self.height * k,
+                outline=color, width=linewidth)]
+
+    def draw_x(self, color='blue', weight=0.175, k=0.8):
+        self.content = 'x'
+        linewidth = (weight * (self.height + self.width)) / 2
+        self.drawings = [
+            self.create_line(
+                self.width * (1 - k), self.height * (1 - k),
+                self.width * k, self.height * k,
+                fill=color, width=linewidth),
+            self.create_line(
+                self.width * (1 - k), self.height * k,
+                self.width * k, self.height * (1 - k),
+                fill=color, width=linewidth)]
+
+    def highlight(self, event=None):
+        self.config(background=self.highlight_background)
+
+    def normal(self, event=None):
+        self.config(background=self.background)
+
+    def on_click(self, event=None):
+        if self.parent.enabled:
+            if not hasattr(self.board, 'has_gravity'):
+                coord = self.row, self.col
+            else:
+                coord = self.col
+            self.board.do_move(coord)
+            self.history.append(coord)
+            self.parent.parent.check_win()
+            self.parent.refresh()
+        if self.parent.enabled:
+            self.parent.parent.computer_moves()
+
 
 # ======================================================================
 class WinAbout(tk.Toplevel):
@@ -659,18 +745,28 @@ class WinSettings(tk.Toplevel):
 
 # ======================================================================
 class WinMain(ttk.Frame):
-    def __init__(self, parent, *_args, **_kws):
-        super(WinMain, self).__init__()
-
+    def __init__(self, parent, screen_size, *_args, **_kws):
+        super(WinMain, self).__init__(parent)
+        self.parent = parent
         self.rows = _kws['rows']
         self.cols = _kws['cols']
         self.aligned = _kws['aligned']
         self.gravity = _kws['gravity']
         self.ai_mode = _kws['ai_mode']
+        self.ai_time_limit = _kws['ai_time_limit']
+        self.verbose = _kws['verbose']
         self.computer_plays = _kws['computer_plays']
         self.board, self.game_ai_class, self.method = prepare_game(
             self.rows, self.cols, self.aligned, self.gravity, self.ai_mode)
         self.first_computer_plays = self.computer_plays
+        self.computer_plays = self.first_computer_plays
+        self.history = []
+        self.undo_history = []
+
+        self.screen_size = screen_size
+        self.init_size = int(
+            ((self.screen_size.width / self.cols / 3)
+             + (self.screen_size.height / self.rows / 3)) / 2)
 
         # get_val config data
         cfg = {}
@@ -689,31 +785,25 @@ class WinMain(ttk.Frame):
         ttk.Frame.__init__(self, parent)
         self.parent = parent
         self.parent.title('(m,n,k)+g-Game')
-        self.parent.protocol('WM_DELETE_WINDOW', self.actionExit)
+        self.parent.protocol('WM_DELETE_WINDOW', self.exit)
 
         self.style = ttk.Style()
         # print(self.style.theme_names())
         self.style.theme_use(self.cfg['gui_style_tk'])
         self.pack(fill=tk.BOTH, expand=True)
 
-        self._make_menu()
+        # print(tk.font.families())
+        self._make_menu(tk.font.Font(family='lucida', size=10))
+        menu_font = tk.font.Font(font=self.mnuMain['font'])
 
         # :: define UI items
-        self.frmMain = ttk.Frame(self)
-        self.frmMain.pack(fill=tk.BOTH, padx=2, pady=2, expand=True)
-        self.frmBoard = ttk.Frame(self.frmMain)
+        self.frmBoard = FrameBoard(self, self.init_size)
 
-        self.cvsBoard = []
-        for i in range(self.board.rows):
-            for j in range(self.board.cols):
-                canvas = tk.Canvas(
-                    self.frmBoard, width=50, height=50, borderwidth=2,
-                    highlightthickness=0, bg='black')
-                canvas.grid(row=i, column=j)
-                self.cvsBoard.append(canvas)
+        self.parent.minsize(
+            self.cols * self.init_size // 5,
+            self.rows * self.init_size // 5 + 4 * menu_font.actual()['size'])
 
-        center(self.parent)
-        # self._cfg_to_ui()
+        center(self.parent, None, self.screen_size)
 
     # --------------------------------
     def _ui_to_cfg(self):
@@ -739,177 +829,66 @@ class WinMain(ttk.Frame):
                 items['spb'].set_val(self.cfg[name])
         self.activateModules()
 
-    def _make_menu(self):
+    def _make_menu(self, font=None):
         self.save_on_exit = tk.BooleanVar(value=self.cfg['save_on_exit'])
 
-        self.mnuMain = tk.Menu(self.parent, tearoff=False)
+        self.mnuMain = tk.Menu(self.parent, tearoff=False, font=font)
         self.parent.config(menu=self.mnuMain)
-        self.mnuFile = tk.Menu(self.mnuMain, tearoff=False)
-        self.mnuMain.add_cascade(label='File', menu=self.mnuFile)
-        self.mnuFileInput = tk.Menu(self.mnuFile, tearoff=False)
-        self.mnuFile.add_cascade(label='Input', menu=self.mnuFileInput)
-        self.mnuFileInput.add_command(label='Add...', command=self.actionAdd)
-        self.mnuFileInput.add_command(
-            label='Remove', command=self.actionRemove)
-        self.mnuFileInput.add_command(
-            label='Clear', command=self.actionClear)
-        self.mnuFileInput.add_separator()
-        self.mnuFileInput.add_command(
-            label='Import...', command=self.actionImport)
-        self.mnuFileInput.add_command(
-            label='Export...', command=self.actionExport)
-        self.mnuFileOutput = tk.Menu(self.mnuFile, tearoff=False)
-        self.mnuFile.add_cascade(label='Output', menu=self.mnuFileOutput)
-        self.mnuFileOutput.add_command(
-            label='Path...', command=self.actionPath)
-        self.mnuFile.add_separator()
-        self.mnuFile.add_command(label='Run', command=self.actionRun)
-        self.mnuFile.add_separator()
-        self.mnuFile.add_command(label='Exit', command=self.actionExit)
-        self.mnuSettings = tk.Menu(self.mnuMain, tearoff=False)
+
+        self.mnuMenu = tk.Menu(self.mnuMain, tearoff=False, font=font)
+        self.mnuMain.add_cascade(label='Menu', menu=self.mnuMenu)
+        self.mnuMenu.add_command(label='New...', command=self.new_game)
+        self.mnuMenu.add_separator()
+        self.mnuMenu.add_command(label='Load...', command=self.load_game)
+        self.mnuMenu.add_command(label='Save...', command=self.save_game)
+        self.mnuMenu.add_separator()
+        self.mnuMenu.add_command(label='Exit', command=self.exit)
+
+        self.mnuMenu = tk.Menu(self.mnuMain, tearoff=False, font=font)
+        self.mnuMain.add_cascade(label='Move', menu=self.mnuMenu)
+        self.mnuMenu.add_command(label='Undo', command=self.undo_move)
+        self.mnuMenu.add_command(label='Redo', command=self.redo_move)
+        self.mnuMenu.add_separator()
+        self.mnuMenu.add_command(
+            label='Switch Sides', command=self.switch_sides)
+        self.mnuMenu.add_command(label='Hint', command=self.hint)
+
+        self.mnuSettings = tk.Menu(self.mnuMain, tearoff=False, font=font)
         self.mnuMain.add_cascade(label='Settings', menu=self.mnuSettings)
+        self.mnuSettings.add_command(label='Restore', command=self.restore)
         self.mnuSettings.add_command(
-            label='Advanced', command=self.actionAdvancedSettings)
+            label='Advanced', command=self.advanced_settings)
         self.mnuSettings.add_separator()
         self.mnuSettings.add_command(
-            label='Load Settings', command=self.actionLoadSettings)
+            label='Load Settings', command=self.load_settings)
         self.mnuSettings.add_command(
-            label='Save Settings', command=self.actionSaveSettings)
+            label='Save Settings', command=self.save_settings)
         self.mnuSettings.add_separator()
         self.mnuSettings.add_checkbutton(
             label='Save on Exit', variable=self.save_on_exit)
         self.mnuSettings.add_command(
-            label='Reset Defaults', command=self.actionResetDefaults)
-        self.mnuHelp = tk.Menu(self.mnuMain, tearoff=False)
+            label='Reset Defaults', command=self.reset_defaults)
+
+        self.mnuHelp = tk.Menu(self.mnuMain, tearoff=False, font=font)
         self.mnuMain.add_cascade(label='Help', menu=self.mnuHelp)
-        self.mnuHelp.add_command(label='About', command=self.actionAbout)
+        self.mnuHelp.add_command(label='About', command=self.about)
 
-    def actionRun(self, event=None):
-        """Action on Click Button Run."""
-        # TODO: redirect stdout to some log box / use progressbar
-        # extract options
-        force = self.wdgOptions['force']['chk'].get_val()
-        msg('Force: {}'.format(force))
-        verbose = VERB_LVL[self.wdgOptions['verbose']['spb'].get_val()]
-        msg('Verb.: {}'.format(verbose))
-        if self.cfg['use_mp']:
-            # parallel
-            pool = multiprocessing.Pool(processes=self.cfg['num_processes'])
-            proc_result_list = []
-        for in_dirpath in self.lsvInput.get_items():
-            kws = {
-                name: info['ent'].get_val()
-                for name, info in self.wdgModules.items()}
-            kws.update({
-                'in_dirpath': in_dirpath,
-                'out_dirpath': os.path.expanduser(self.entPath.get()),
-                'subpath': self.entSubpath.get(),
-                'force': force,
-                'verbose': verbose,
-            })
-            # print(kws)
-            if self.cfg['use_mp']:
-                proc_result = pool.apply_async(
-                    dcmpi_run, kwds=kws)
-                proc_result_list.append(proc_result)
-            else:
-                dcmpi_run(**kws)
-        # print(proc_result_list)
-        if self.cfg['use_mp']:
-            res_list = []
-            for proc_result in proc_result_list:
-                res_list.append(proc_result.get())
-        return
+    def new_game(self, event=None):
+        self.first_computer_plays = not self.first_computer_plays
+        self.computer_plays = self.first_computer_plays
+        self.board.reset()
+        self.history = []
+        self.frmBoard.reset()
+        if self.computer_plays:
+            self.computer_moves()
 
-    def actionImport(self, event=None):
-        """Action on Click Button Import."""
-        title = '{} {} List'.format(
-            self.btnImport.cget('text'), self.lblInput.cget('text'))
-        in_filepath = filedialog.askopenfilename(
-            parent=self, title=title, defaultextension='.json',
-            initialdir=self.cfg['import_path'],
-            filetypes=[('JSON Files', '*.json')])
-        if in_filepath:
-            try:
-                with open(in_filepath, 'r') as in_file:
-                    targets = json.load(in_file)
-                for target in targets:
-                    self.lsvInput.add_item(target, unique=True)
-            except ValueError:
-                title = self.btnImport.cget('text') + ' Failed'
-                msg = 'Could not import input list from `{}`'.format(
-                    in_filepath)
-                messagebox.showerror(title=title, message=msg)
-            finally:
-                self.cfg['import_path'] = os.path.dirname(in_filepath)
+    def load_game(self, event=None):
+        pass
 
-    def actionExport(self, event=None):
-        """Action on Click Button Export."""
-        title = '{} {} List'.format(
-            self.btnExport.cget('text'), self.lblInput.cget('text'))
-        out_filepath = filedialog.asksaveasfilename(
-            parent=self, title=title, defaultextension='.json',
-            initialdir=self.cfg['export_path'],
-            filetypes=[('JSON Files', '*.json')], confirmoverwrite=True)
-        if out_filepath:
-            targets = self.lsvInput.get_items()
-            if not targets:
-                title = self.btnExport.cget('text')
-                msg = 'Empty {} list.\n'.format(self.lblInput.cget('text')) + \
-                      'Do you want to proceed exporting?'
-                proceed = messagebox.askyesno(title=title, message=msg)
-            else:
-                proceed = True
-            if proceed:
-                with open(out_filepath, 'w') as out_file:
-                    json.dump(targets, out_file, sort_keys=True, indent=4)
-                self.cfg['export_path'] = os.path.dirname(out_filepath)
+    def save_game(self, event=None):
+        pass
 
-    def actionAdd(self, event=None):
-        """Action on Click Button Add."""
-        title = self.btnAdd.cget('text') + ' ' + self.lblInput.cget('text')
-        target = filedialog.askdirectory(
-            parent=self, title=title, initialdir=self.cfg['add_path'],
-            mustexist=True)
-        if target:
-            self.lsvInput.add_item(target, unique=True)
-            self.cfg['add_path'] = target
-        return target
-
-    def actionRemove(self, event=None):
-        """Action on Click Button Remove."""
-        items = self.lsvInput.get_children('')
-        selected = self.lsvInput.selection()
-        if selected:
-            for item in selected:
-                self.lsvInput.delete(item)
-        elif items:
-            self.lsvInput.delete(items[-1])
-        else:
-            msg('Empty input list!')
-
-    def actionClear(self, event=None):
-        """Action on Click Button Clear."""
-        self.lsvInput.clear()
-
-    def actionPath(self, event=None):
-        """Action on Click Text Output."""
-        title = self.lblOutput.cget('text') + ' ' + self.lblPath.cget('text')
-        target = filedialog.askdirectory(
-            parent=self, title=title, initialdir=self.cfg['output_path'],
-            mustexist=True)
-        if target:
-            self.entPath.set_val(target)
-        return target
-
-    def activateModules(self, event=None):
-        """Action on Change Checkbox Import."""
-        for name, items in self.wdgModules.items():
-            active = items['chk'].get_val()
-            if items['ent']:
-                items['ent']['state'] = 'enabled' if active else 'disabled'
-
-    def actionExit(self, event=None):
+    def exit(self, event=None):
         """Action on Exit."""
         if messagebox.askokcancel('Quit', 'Are you sure you want to quit?'):
             self.cfg = self._ui_to_cfg()
@@ -917,11 +896,38 @@ class WinMain(ttk.Frame):
                 save_config(self.cfg, self.cfg_filepath)
             self.parent.destroy()
 
-    def actionAbout(self, event=None):
+    def undo_move(self, event=None):
+        if self.history:
+            coord = self.history.pop(-1)
+            self.board.undo_move(coord)
+            self.undo_history.append(coord)
+            self.frmBoard.hide_wins()
+            self.frmBoard.unfreeze()
+            self.frmBoard.refresh()
+
+    def redo_move(self, event=None):
+        if self.undo_history:
+            coord = self.undo_history.pop(-1)
+            self.board.do_move(coord)
+            self.history.append(coord)
+            self.frmBoard.refresh()
+            self.check_win()
+
+    def switch_sides(self, event=None):
+        self.computer_moves()
+
+    def hint(self, event=None):
+        pass
+
+    def about(self, event=None):
         """Action on About."""
         self.winAbout = WinAbout(self.parent)
 
-    def actionAdvancedSettings(self, event=None):
+    def restore(self, event=None):
+        self.winfo_toplevel().geometry('')
+        center(self.parent, self.screen_size)
+
+    def advanced_settings(self, event=None):
         self.winSettings = WinSettings(self.parent, self)
         if self.winSettings.result:
             self.cfg.update(self.winSettings.result)
@@ -930,23 +936,50 @@ class WinMain(ttk.Frame):
         # w, h = self.parent.winfo_width(), self.parent.winfo_height()
         self.parent.update()
 
-    def actionLoadSettings(self):
+    def load_settings(self):
         self.cfg = load_config(self.cfg_filepath)
         self._cfg_to_ui()
 
-    def actionSaveSettings(self):
+    def save_settings(self):
         self.cfg = self._ui_to_cfg()
         save_config(self.cfg, self.cfg_filepath)
 
-    def actionResetDefaults(self, event=None):
+    def reset_defaults(self, event=None):
         self.cfg = default_config()
         self._cfg_to_ui()
+
+    def computer_moves(self):
+        if not self.board.is_full():
+            coord = self.game_ai_class().get_best_move(
+                self.board,
+                self.ai_time_limit, self.method, max_depth=-1,
+                verbose=self.verbose >= D_VERB_LVL)
+            self.board.do_move(coord)
+            self.history.append(coord)
+            self.frmBoard.refresh()
+            self.check_win()
+
+    def check_win(self):
+        if self.board.winner(self.board.turn) == self.board.turn:
+            self.frmBoard.freeze()
+            self.frmBoard.show_wins()
+        elif self.board.is_full():
+            self.frmBoard.freeze()
 
 
 # ======================================================================
 def mnk_game_gui(*_args, **_kws):
+    screen_size = Geometry(get_curr_screen_geometry())
     root = tk.Tk()
-    app = WinMain(root, *_args, **_kws)
+    app = WinMain(root, screen_size, *_args, **_kws)
     resources_path = PATH['resources']
     set_icon(root, 'icon', resources_path)
     root.mainloop()
+
+
+if __name__ == '__main__':
+    mnk_game_gui(
+        # rows=6, cols=7, aligned=4, gravity=True,
+        rows=3, cols=3, aligned=3, gravity=False,
+        ai_mode='alphabeta', computer_plays=False,
+        ai_time_limit=0.1, verbose=VERB_LVL['lowest'])
