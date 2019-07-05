@@ -1,6 +1,7 @@
 from mnkgame.GameAiSearchTree import GameAiSearchTree
 from mnkgame.GameAiRandom import GameAiRandom
 
+
 def prepare_game(
         rows,
         cols,
