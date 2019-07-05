@@ -33,10 +33,6 @@ class Board:
         self.turn = self.TURNS[-1]
 
     @property
-    def _STR_ROW_RANGE(self):
-        return range(self.rows)
-
-    @property
     def max_num_moves(self):
         return self.rows * self.cols
 
@@ -50,7 +46,7 @@ class Board:
 
     def __repr__(self):
         text = ''
-        for i in self._STR_ROW_RANGE:
+        for i in range(self.rows):
             text += ''.join([self._REPRS[x] for x in self.matrix[i, :]]) + '\n'
         return text[:-1]
 
@@ -67,7 +63,7 @@ class Board:
         else:
             header = hor_sep
         text += header
-        for i in self._STR_ROW_RANGE:
+        for i in range(self.rows):
             text += \
                 (str(i % NUM_DIGITS) if self._STR_SHOW_ROW_COORDS else ver) \
                 + ver.join([reprs[x] for x in self.matrix[i, :]]) \
@@ -132,8 +128,8 @@ class Board:
 
     def undo_move(self, coord):
         if self.is_valid_move(coord) and self.matrix[coord] != self.EMPTY:
+            self.turn = self.prev_turn()
             self.matrix[coord] = self.EMPTY
-            self.turn = self.next_turn()
             return True
         else:
             return False
@@ -188,14 +184,14 @@ class Board:
                         return turn
             return self.EMPTY
 
-    def winner_series(self, turn=None):
+    def winning_series(self, turn=None):
         if self.is_empty():
             return []
         elif turn is None:
             result = []
             for turn in self.TURNS:
-                result = self.winner(turn)
-                if result != self.EMPTY:
+                result = self.winning_series(turn)
+                if len(result) > 0:
                     break
             return result
         else:
@@ -225,11 +221,19 @@ class Board:
                         result.append(((i, j), (i + win_len - 1, j)))
             return result
 
-    def get_victory_coords(self):
-        if self.winner(None):
-            pass
-        raise NotImplementedError
-
     def get_score(self):
         return (self.max_num_moves - self.num_moves()) \
                * (1 if self.turn == self.TURNS[0] else -1)
+
+    @staticmethod
+    def extrema_to_coords(begin, end):
+        diff = tuple(y - x for x, y in zip(begin, end))
+        result = []
+        if abs(diff[0]) == abs(diff[1]) or diff[0] == 0 or diff[1] == 0:
+            coord = begin
+            for _ in range(max(abs(x) for x in diff) + 1):
+                result.append(coord)
+                coord = tuple(
+                    x + (1 if d > 0 else -1 if d < 0 else 0)
+                    for x, d in zip(coord, diff))
+        return result
