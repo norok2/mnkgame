@@ -27,8 +27,8 @@ def negamax(
     if board.winner(board.turn) == board.turn:
         return -board.win_score
     elif depth == 0 or board.is_full():
-        return -board.get_score(board.turn)
-    best_value = -board.win_score()
+        return -board.get_score()
+    best_value = -board.win_score
     for coord in board.sorted_moves():
         board.do_move(coord)
         value = -negamax(
@@ -57,13 +57,13 @@ def negamax_alphabeta(
         board.do_move(coord)
         value = -negamax_alphabeta(
             board, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta)
+            -beta if soft else alpha,
+            -alpha if soft else beta, soft)
         board.undo_move(coord)
         best_value = max(value, best_value)
-        if best_value >= beta:
+        alpha = max(best_value, alpha)
+        if alpha >= beta:
             break
-        if best_value > alpha:
-            alpha = best_value
     return best_value
 
 
@@ -87,17 +87,16 @@ def negamax_alphabeta_jit(
         board.do_move(coord)
         value = -negamax_alphabeta_jit(
             board, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta)
+            -beta if soft else alpha, -alpha if soft else beta, soft)
         board.undo_move(coord)
         best_value = max(value, best_value)
-        if best_value >= beta:
+        alpha = max(best_value, alpha)
+        if alpha >= beta:
             break
-        if best_value > alpha:
-            alpha = best_value
     return best_value
 
 
-def negamax_alphabeta_pvs(
+def negascout(
         board,
         depth,
         max_duration=10.0,
@@ -116,26 +115,25 @@ def negamax_alphabeta_pvs(
     for coord in board.sorted_moves():
         board.do_move(coord)
         if is_first:
-            value = -negamax_alphabeta_pvs(
+            value = -negascout(
                 board, depth - 1, max_duration - (time.time() - clock),
                 -beta if soft else alpha, -alpha if soft else beta, soft,
                 not is_first)
         else:
-            value = -negamax_alphabeta_pvs(
+            value = -negascout(
                 board, depth - 1, max_duration - (time.time() - clock),
                 (-alpha - 1) if soft else alpha, -alpha if soft else beta,
                 soft, not is_first)
             if alpha < value < beta:
-                value = -negamax_alphabeta_pvs(
+                value = -negascout(
                     board, depth - 1, max_duration - (time.time() - clock),
                     -beta if soft else alpha, -alpha if soft else beta,
                     soft, not is_first)
         board.undo_move(coord)
         best_value = max(value, best_value)
-        if best_value >= beta:
+        alpha = max(best_value, alpha)
+        if alpha >= beta:
             break
-        if best_value > alpha:
-            alpha = best_value
     return best_value
 
 
@@ -156,21 +154,21 @@ def negamax_alphabeta_hashing(
     if (board, depth) in hashtable:
         return hashtable[(board, depth)]
     if board.winner(board.turn) == board.turn:
-        return -np.inf
+        return -board.win_score
     if depth == 0 or board.is_full():
         return board.get_score()
-    best_value = -np.inf
+    best_value = -board.win_score
     for coord in board.sorted_moves():
         board.do_move(coord)
         value = -negamax_alphabeta_hashing(
             board, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta)
+            -beta if soft else alpha, -alpha if soft else beta,
+            soft, hashtable)
         board.undo_move(coord)
         best_value = max(value, best_value)
-        if best_value >= beta:
+        alpha = max(best_value, alpha)
+        if alpha >= beta:
             break
-        if best_value > alpha:
-            alpha = best_value
     hashtable[(board, depth)] = best_value
     return best_value
 
@@ -188,7 +186,7 @@ class GameAiSearchTree(GameAi):
             randomize=False,
             max_depth=None,
             verbose=True,
-            callback=True,
+            callback=None,
             *_args,
             **_kws):
         if method in globals():
@@ -207,13 +205,14 @@ class GameAiSearchTree(GameAi):
             max_depth = board.num_moves_left() - (max_depth + 1)
         if verbose:
             feedback = ', '.join([
-                f'Method: {method}'
-                f'Min. Depth: {board.win_len}'
-                f'Max. Depth: {max(board.win_len, max_depth)}'])
+                f'Method: {method}',
+                f'Min.Depth: {board.num_win}',
+                f'Max.Depth: {max(board.num_win, max_depth)}'])
+            print(feedback)
         clock = time.time()
         choices = board.sorted_moves()
         best_val = -np.inf
-        for depth in range(1, max(board.win_len, max_depth) + 1):
+        for depth in range(1, max(board.num_moves_left(), max_depth) + 1):
             new_choices = []
             depth_clock = time.time()
             val = -np.inf

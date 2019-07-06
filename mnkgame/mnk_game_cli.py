@@ -7,7 +7,8 @@ from mnkgame import prettify
 from mnkgame import D_VERB_LVL
 from mnkgame import msg
 
-from mnkgame.util import prepare_game
+from mnkgame.util import make_board
+from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
 
 
 # ======================================================================
@@ -121,15 +122,16 @@ def get_human_move(
 def mnk_game_cli(
         rows,
         cols,
-        aligned,
+        num_win,
         gravity,
         ai_mode,
-        ai_time_limit,
+        ai_timeout,
         computer_plays,
         pretty,
         verbose):
-    board, game_ai_class, method = prepare_game(
-        rows, cols, aligned, gravity, ai_mode)
+    ai_class = AI_MODES[ai_mode]['ai_class']
+    ai_method = AI_MODES[ai_mode]['ai_method']
+    board = make_board(rows, cols, num_win, gravity)
     choice = 'n'
     continue_game = True
     first_computer_plays = computer_plays
@@ -137,8 +139,8 @@ def mnk_game_cli(
         if choice not in {None, 's'}:
             print('\n' + colorized_board(board, pretty), sep='')
         if computer_plays:
-            choice = game_ai_class().get_best_move(
-                board, ai_time_limit, method, max_depth=-1,
+            choice = ai_class().get_best_move(
+                board, ai_timeout, method, max_depth=-1,
                 verbose=verbose >= D_VERB_LVL)
         else:
             menu_choices = dict(
@@ -159,8 +161,8 @@ def mnk_game_cli(
             elif choice == 's':
                 msg('I: switching sides (computer plays)!', fmt=pretty)
             elif choice == 'h':
-                coord = game_ai_class().get_best_move(
-                    board, ai_time_limit, method, max_depth=-1,
+                coord = ai_class().get_best_move(
+                    board, ai_timeout, method, max_depth=-1,
                     verbose=True)
                 msg('I: Best move for computer: ' + str(coord), fmt=pretty)
                 choice = None

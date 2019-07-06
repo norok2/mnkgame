@@ -1,34 +1,51 @@
 from mnkgame.GameAiSearchTree import GameAiSearchTree
 from mnkgame.GameAiRandom import GameAiRandom
 
+AI_MODES = dict(
+    alphabeta=dict(
+        ai_class=GameAiSearchTree, ai_method='negamax_alphabeta'),
+    negamax=dict(
+        ai_class=GameAiSearchTree, ai_method='negamax'),
+    scout=dict(
+        ai_class=GameAiSearchTree, ai_method='negascout'),
+    hashing=dict(
+        ai_class=GameAiSearchTree, ai_method='negamax_alphabeta_hashing'),
+    more_random=dict(
+        ai_class=GameAiRandom, ai_method='more'),
+    less_random=dict(
+        ai_class=GameAiRandom, ai_method='less'),
+    zero_random=dict(
+        ai_class=GameAiRandom, ai_method='zero'),
+)
+USER_INTERFACES = (
+    'auto',
+    'gui',
+    # 'tui',
+    'cli')
+ALIASES = dict(
+    custom=None,
+    tic_tac_toe=dict(rows=3, cols=3, num_win=3, gravity=False),
+    connect4=dict(rows=6, cols=7, num_win=4, gravity=True),
+    gomoku=dict(rows=15, cols=15, num_win=5, gravity=False),
+)
 
-def prepare_game(
+
+def guess_alias(**_kws):
+    labels = 'rows', 'cols', 'num_win', 'gravity'
+    for alias, info in ALIASES.items():
+        if info and all(
+                k in _kws and k in info and _kws[k] == info[k]
+                for k in labels):
+            return alias
+    return 'custom'
+
+def make_board(
         rows,
         cols,
-        aligned,
-        gravity,
-        ai_mode):
+        num_win,
+        gravity):
     if gravity:
         from mnkgame.BoardGravity import BoardGravity as BoardClass
     else:
         from mnkgame.Board import Board as BoardClass
-    board = BoardClass(rows, cols, aligned)
-    if ai_mode == 'random':
-        pass
-    else:
-        pass
-    game_ai_class = GameAiSearchTree
-    if ai_mode == 'negamax':
-        method = 'negamax'
-    elif ai_mode == 'alphabeta':
-        method = 'negamax_alphabeta'
-    elif ai_mode == 'alphabeta_jit':
-        method = 'negamax_alphabeta_jit'
-    elif ai_mode == 'pvs':
-        method = 'negamax_alphabeta_pvs'
-    elif ai_mode == 'alphabeta_hashing':
-        method = 'negamax_alphabeta_hashing'
-    else:  # if ai_method == 'random':
-        game_ai_class = GameAiRandom
-        method = None
-    return board, game_ai_class, method
+    return BoardClass(rows, cols, num_win)

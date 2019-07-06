@@ -69,7 +69,7 @@ def mnk_game_tui(
         board,
         game_ai_class,
         method,
-        ai_time_limit,
+        ai_timeout,
         computer_plays,
         verbose):
     buffer1 = pt.buffer.Buffer()  # Editable buffer.

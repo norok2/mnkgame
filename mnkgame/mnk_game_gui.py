@@ -7,7 +7,7 @@ import os
 import multiprocessing
 import collections
 import json
-import copy
+import warnings
 
 try:
     import tkinter as tk
@@ -32,7 +32,8 @@ from mnkgame import D_VERB_LVL, VERB_LVL, VERB_LVL_NAMES
 from mnkgame import msg
 from mnkgame import INFO, PATH
 from mnkgame import print_greetings, prettify, MY_GREETINGS
-from mnkgame.util import prepare_game
+from mnkgame.util import make_board, guess_alias
+from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
 
 # ======================================================================
 # :: determine initial configuration
@@ -95,13 +96,6 @@ def save_config(
         os.makedirs(dirpath)
     with open(cfg_filepath, 'w') as cfg_file:
         json.dump(config, cfg_file, sort_keys=True, indent=4)
-
-
-import os
-import warnings
-
-from pytk import tk
-from pytk import msg, dbg
 
 
 # ======================================================================
@@ -219,7 +213,7 @@ def get_curr_screen_geometry():
             [width]x[height]+[left]+[top]
     """
     temp = tk.Tk()
-    temp.update()
+    temp.update_idletasks()
     temp.attributes('-fullscreen', True)
     temp.state('iconic')
     geometry = temp.winfo_geometry()
@@ -272,24 +266,10 @@ def center(target, reference=None):
         geometry = reference.winfo_geometry()
     else:
         geometry = reference
-    if isinstance(reference, str):
+    if isinstance(geometry, str):
         geometry = Geometry(geometry)
     target_geometry = Geometry(target.winfo_geometry())
     target.geometry(str(target_geometry.set_to_center(geometry)))
-
-
-# ======================================================================
-def set_aspect(target, parent, aspect=1.0):
-    def enforce_aspect_ratio(event):
-        width = event.width
-        height = int(event.width / aspect)
-        if height > event.height:
-            height = event.height
-            width = int(event.height * aspect)
-        target.place(
-            in_=parent, x=0, y=0, width=width, height=height)
-
-    parent.bind("<Configure>", enforce_aspect_ratio)
 
 
 # ======================================================================
@@ -335,6 +315,7 @@ class Geometry(object):
             1x0+2+3
             >>> print(Geometry('1x2+1'))
             1x2+1+0
+            >>> print(Geometry('.'))
         """
         self.width, self.height, self.left, self.top = width, height, left, top
         if isinstance(text, str):
@@ -404,7 +385,6 @@ class FrameBoard(tk.Frame):
         self.grid(row=0, column=0, sticky=tk.N + tk.S + tk.E + tk.W)
         self.parent = parent
         self.board = self.parent.board
-        self.history = self.parent.history
         self.border = border
         self.height = self.winfo_height()
         self.width = self.winfo_width()
@@ -483,7 +463,6 @@ class CanvasCell(tk.Canvas):
     def __init__(self, parent, row, col, **_kws):
         self.parent = parent
         self.board = self.parent.board
-        self.history = self.parent.history
         self.row = row
         self.col = col
         self.background = _kws['background']
@@ -572,7 +551,12 @@ class CanvasCell(tk.Canvas):
             else:
                 coord = self.col
             self.board.do_move(coord)
-            self.history.append(coord)
+            self.parent.parent.undo_history.append(coord)
+            if self.parent.parent.redo_history and \
+                    coord == self.parent.parent.redo_history[-1]:
+                self.parent.parent.redo_history.pop()
+            else:
+                self.parent.parent.redo_history = []
             self.parent.parent.check_win()
             self.parent.refresh()
         if self.parent.enabled:
@@ -582,7 +566,7 @@ class CanvasCell(tk.Canvas):
 # ======================================================================
 class WinAbout(tk.Toplevel):
     def __init__(self, parent):
-        self.win = super(WinAbout, self).__init__(parent)
+        super(WinAbout, self).__init__(parent)
         self.transient(parent)
         self.parent = parent
         self.title('About {}'.format(INFO['name']))
@@ -608,13 +592,16 @@ class WinAbout(tk.Toplevel):
         self.btnClose = ttk.Button(
             self.frmMain, text='Close', command=self.destroy)
         self.btnClose.pack(side=tk.BOTTOM, padx=8, pady=8)
-        self.bind('<Return>', self.destroy)
-        self.bind('<Escape>', self.destroy)
+        self.bind('<Return>', self.close)
+        self.bind('<Escape>', self.close)
 
         center(self, self.parent)
 
         self.grab_set()
         self.wait_window(self)
+
+    def close(self, event=None):
+        self.destroy()
 
 
 # ======================================================================
@@ -638,7 +625,7 @@ class WinSettings(tk.Toplevel):
             self.settings[name]['default'] = app.cfg[name]
         self.result = None
 
-        self.win = super(WinSettings, self).__init__(parent)
+        super(WinSettings, self).__init__(parent)
         self.transient(parent)
         self.parent = parent
         self.app = app
@@ -750,25 +737,29 @@ class WinMain(ttk.Frame):
     def __init__(self, parent, screen_size, *_args, **_kws):
         super(WinMain, self).__init__(parent)
         self.parent = parent
-        self.rows = _kws['rows']
-        self.cols = _kws['cols']
-        self.aligned = _kws['aligned']
-        self.gravity = _kws['gravity']
-        self.ai_mode = _kws['ai_mode']
-        self.ai_time_limit = _kws['ai_time_limit']
+        self.rows = tk.IntVar(None, _kws['rows'])
+        self.cols = tk.IntVar(None, _kws['cols'])
+        self.num_win = tk.IntVar(None, _kws['num_win'])
+        self.gravity = tk.BooleanVar(None, _kws['gravity'])
+        self.ai_mode = tk.StringVar(None, _kws['ai_mode'])
+        self.game_alias = tk.StringVar(None, guess_alias(**_kws))
+        self.ai_timeout = tk.DoubleVar(None, _kws['ai_timeout'])
         self.verbose = _kws['verbose']
         self.computer_plays = _kws['computer_plays']
-        self.board, self.game_ai_class, self.method = prepare_game(
-            self.rows, self.cols, self.aligned, self.gravity, self.ai_mode)
+        self.ai_class = AI_MODES[self.ai_mode.get()]['ai_class']
+        self.ai_method = AI_MODES[self.ai_mode.get()]['ai_method']
+        self.board = make_board(
+            self.rows.get(), self.cols.get(), self.num_win.get(),
+            self.gravity.get())
         self.first_computer_plays = self.computer_plays
         self.computer_plays = self.first_computer_plays
-        self.history = []
         self.undo_history = []
+        self.redo_history = []
 
         self.screen_size = screen_size
         self.init_size = int(
-            ((self.screen_size.width / self.cols / 3)
-             + (self.screen_size.height / self.rows / 3)) / 2)
+            ((self.screen_size.width / self.board.cols / 3)
+             + (self.screen_size.height / self.board.rows / 3)) / 2)
 
         # get_val config data
         cfg = {}
@@ -796,14 +787,15 @@ class WinMain(ttk.Frame):
 
         # print(tk.font.families())
         self._make_menu(tk.font.Font(family='lucida', size=10))
-        menu_font = tk.font.Font(font=self.mnuMain['font'])
+        self.menu_font = tk.font.Font(font=self.mnuMain['font'])
 
         # :: define UI items
         self.frmBoard = FrameBoard(self, self.init_size)
 
         self.parent.minsize(
-            self.cols * self.init_size // 5,
-            self.rows * self.init_size // 5 + 4 * menu_font.actual()['size'])
+            self.cols.get() * self.init_size // 5,
+            self.rows.get() * self.init_size // 5
+            + 4 * self.menu_font.actual()['size'])
 
         center(self.parent, self.screen_size)
 
@@ -837,52 +829,162 @@ class WinMain(ttk.Frame):
         self.mnuMain = tk.Menu(self.parent, tearoff=False, font=font)
         self.parent.config(menu=self.mnuMain)
 
-        self.mnuMenu = tk.Menu(self.mnuMain, tearoff=False, font=font)
-        self.mnuMain.add_cascade(label='Menu', menu=self.mnuMenu)
-        self.mnuMenu.add_command(label='New...', command=self.new_game)
-        self.mnuMenu.add_separator()
-        self.mnuMenu.add_command(label='Load...', command=self.load_game)
-        self.mnuMenu.add_command(label='Save...', command=self.save_game)
-        self.mnuMenu.add_separator()
-        self.mnuMenu.add_command(label='Exit', command=self.exit)
+        self.mnuGame = tk.Menu(self.mnuMain, tearoff=False, font=font)
+        self.mnuMain.add_cascade(
+            label='Game', underline=0, menu=self.mnuGame)
+        self.mnuNewGame = tk.Menu(self.mnuGame, tearoff=False, font=font)
+        self.mnuGame.add_cascade(
+            label='New', underline=0, menu=self.mnuNewGame)
+        self.mnuNewGame.add_command(
+            label='Same as current', underline=1, command=self.new_game,
+            accelerator='Ctrl+N')
+        self.mnuNewGame.add_separator()
+        for alias, info in ALIASES.items():
+            if info:
+                title = alias.replace('_', ' ').title()
+                self.mnuNewGame.add_radiobutton(
+                    label=title, underline=0, command=self.new_aliased,
+                    value=alias, variable=self.game_alias)
+        self.mnuNewGame.add_radiobutton(
+            label='Custom...', underline=1, command=self.new_custom,
+            value='custom', variable=self.game_alias)
+        self.mnuGame.add_separator()
+        self.mnuGame.add_command(
+            label='Load...', underline=0, command=self.load_game,
+            accelerator='Ctrl+O')
+        self.mnuGame.add_command(
+            label='Save...', underline=0, command=self.save_game,
+            accelerator='Ctrl+S')
+        self.mnuGame.add_separator()
+        self.mnuGame.add_command(
+            label='Exit', underline=1, command=self.exit,
+            accelerator='Ctrl+X')
 
-        self.mnuMenu = tk.Menu(self.mnuMain, tearoff=False, font=font)
-        self.mnuMain.add_cascade(label='Move', menu=self.mnuMenu)
-        self.mnuMenu.add_command(label='Undo', command=self.undo_move)
-        self.mnuMenu.add_command(label='Redo', command=self.redo_move)
-        self.mnuMenu.add_separator()
-        self.mnuMenu.add_command(
-            label='Switch Sides', command=self.switch_sides)
-        self.mnuMenu.add_command(label='Hint', command=self.hint)
+        self.mnuGame = tk.Menu(self.mnuMain, tearoff=False, font=font)
+        self.mnuMain.add_cascade(
+            label='Move', underline=1, menu=self.mnuGame)
+        self.mnuGame.add_command(
+            label='Undo', underline=0, command=self.undo_move,
+            accelerator='Ctrl+Z')
+        self.mnuGame.add_command(
+            label='Redo', underline=0, command=self.redo_move,
+            accelerator='Ctrl+Shift+Z')
+        self.mnuGame.add_separator()
+        self.mnuGame.add_command(
+            label='Switch Sides', underline=1, command=self.switch_sides,
+            accelerator='Ctrl-W')
+        self.mnuGame.add_command(
+            label='Hint', underline=0, command=self.hint,
+            accelerator='Ctrl-H')
 
         self.mnuSettings = tk.Menu(self.mnuMain, tearoff=False, font=font)
-        self.mnuMain.add_cascade(label='Settings', menu=self.mnuSettings)
-        self.mnuSettings.add_command(label='Restore', command=self.restore)
-        self.mnuSettings.add_command(
-            label='Advanced', command=self.advanced_settings)
+        self.mnuMain.add_cascade(
+            label='Settings', underline=0, menu=self.mnuSettings)
+        self.mnuAiMode = tk.Menu(self.mnuSettings, tearoff=False, font=font)
+        self.mnuSettings.add_cascade(
+            label='AI Mode', underline=0, menu=self.mnuAiMode)
+        for ai_mode in AI_MODES.keys():
+            title = ai_mode.replace('_', ' ').title()
+            self.mnuAiMode.add_radiobutton(
+                label=title, underline=0, command=self.change_ai_mode,
+                value=ai_mode, variable=self.ai_mode)
+        self.mnuAiTimeout = tk.Menu(self.mnuSettings, tearoff=False, font=font)
+        self.mnuSettings.add_cascade(
+            label='AI Timeout', underline=0, menu=self.mnuAiTimeout)
+        for value in (0.5, 1.0, 5.0, 10.0, 60.0):
+            self.mnuAiTimeout.add_radiobutton(
+                label='{:.0f} sec'.format(value), underline=0, command=None,
+                value=value, variable=self.ai_timeout)
+        self.mnuAiTimeout.add_command(
+            label='Custom...', underline=0, command=self.change_ai_timeout)
         self.mnuSettings.add_separator()
         self.mnuSettings.add_command(
-            label='Load Settings', command=self.load_settings)
+            label='Restore View', underline=4, command=self.restore_view)
         self.mnuSettings.add_command(
-            label='Save Settings', command=self.save_settings)
+            label='Advanced', underline=0, command=self.advanced_settings)
+        self.mnuSettings.add_separator()
+        self.mnuSettings.add_command(
+            label='Load Settings', underline=0, command=self.load_settings)
+        self.mnuSettings.add_command(
+            label='Save Settings', underline=0, command=self.save_settings)
         self.mnuSettings.add_separator()
         self.mnuSettings.add_checkbutton(
-            label='Save on Exit', variable=self.save_on_exit)
+            label='Save on Exit', underline=2, variable=self.save_on_exit)
         self.mnuSettings.add_command(
-            label='Reset Defaults', command=self.reset_defaults)
+            label='Reset Defaults', underline=0, command=self.reset_defaults)
 
         self.mnuHelp = tk.Menu(self.mnuMain, tearoff=False, font=font)
-        self.mnuMain.add_cascade(label='Help', menu=self.mnuHelp)
-        self.mnuHelp.add_command(label='About', command=self.about)
+        self.mnuMain.add_cascade(
+            label='Help', menu=self.mnuHelp, underline=0)
+        self.mnuHelp.add_command(
+            label='About', command=self.about, underline=0,
+            accelerator='Ctrl+?')
+
+        self.bind_all("<Control-n>", self.new_game)
+        self.bind_all("<Control-o>", self.load_game)
+        self.bind_all("<Control-s>", self.save_game)
+        self.bind_all("<Control-x>", self.exit)
+        self.bind_all("<Control-z>", self.undo_move)
+        self.bind_all("<Control-Z>", self.redo_move)
+        self.bind_all("<Control-w>", self.switch_sides)
+        self.bind_all("<Control-h>", self.hint)
+        self.bind_all("<Control-question>", self.about)
 
     def new_game(self, event=None):
         self.first_computer_plays = not self.first_computer_plays
         self.computer_plays = self.first_computer_plays
         self.board.reset()
-        self.history = []
+        self.undo_history = []
+        self.redo_history = []
         self.frmBoard.reset()
         if self.computer_plays:
             self.computer_moves()
+
+    def _new_game(self, **_kws):
+        self.board = make_board(**_kws)
+        self.frmBoard = FrameBoard(self, self.init_size)
+        # self.parent.geometry(str(Geometry(
+        #     width=self.cols.get() * self.init_size,
+        #     height=self.rows.get() * self.init_size
+        #            + 4 * self.menu_font.actual()['size'])))
+        # center(self.parent, self.screen_size)
+        self.new_game()
+
+    def new_aliased(self, event=None):
+        if self.board.is_empty() or messagebox.askokcancel(
+                'Continue', 'This will start a new game. Are you sure?'):
+            alias = self.game_alias.get()
+            self._new_game(**ALIASES[alias])
+
+
+    def new_custom(self, event=None):
+        if self.board.is_empty() or messagebox.askokcancel(
+                'Continue', 'This will start a new game. Are you sure?'):
+            rows = simpledialog.askinteger(
+                'Rows', 'Number of Rows', initialvalue=self.rows.get(),
+                minvalue=1, maxvalue=32)
+            cols = simpledialog.askinteger(
+                'Columns', 'Number of Columns', initialvalue=self.cols.get(),
+                minvalue=1, maxvalue=32)
+            num_win = simpledialog.askinteger(
+                'Num.Winning', 'Number for Winning',
+                initialvalue=self.num_win.get(),
+                minvalue=min(3, rows, cols), maxvalue=max(rows, cols))
+            gravity = bool(simpledialog.askinteger(
+                'Gravity', 'Has Gravity', initialvalue=self.gravity.get(),
+                minvalue=0, maxvalue=1))
+            kws = dict(
+                rows=rows
+                    if rows is not None else self.rows.get(),
+                cols=cols
+                    if cols is not None else self.cols.get(),
+                num_win=num_win
+                    if num_win is not None else self.num_win.get(),
+                gravity=gravity
+                    if gravity is not None else self.gravity.get())
+            alias = guess_alias(**kws)
+            self.game_alias.set(alias)
+            self._new_game(**kws)
 
     def load_game(self, event=None):
         pass
@@ -892,40 +994,53 @@ class WinMain(ttk.Frame):
 
     def exit(self, event=None):
         """Action on Exit."""
-        if messagebox.askokcancel('Quit', 'Are you sure you want to quit?'):
+        if messagebox.askokcancel('Exit', 'Are you sure you want to exit?'):
             self.cfg = self._ui_to_cfg()
             if self.cfg['save_on_exit']:
                 save_config(self.cfg, self.cfg_filepath)
             self.parent.destroy()
 
     def undo_move(self, event=None):
-        if self.history:
-            coord = self.history.pop(-1)
+        if self.undo_history:
+            coord = self.undo_history.pop(-1)
             self.board.undo_move(coord)
-            self.undo_history.append(coord)
+            self.redo_history.append(coord)
             self.frmBoard.hide_wins()
             self.frmBoard.unfreeze()
             self.frmBoard.refresh()
 
     def redo_move(self, event=None):
-        if self.undo_history:
-            coord = self.undo_history.pop(-1)
+        if self.redo_history:
+            coord = self.redo_history.pop(-1)
             self.board.do_move(coord)
-            self.history.append(coord)
+            self.undo_history.append(coord)
             self.frmBoard.refresh()
             self.check_win()
 
     def switch_sides(self, event=None):
-        self.computer_moves()
+        if self.frmBoard.enabled:
+            self.computer_moves()
 
     def hint(self, event=None):
         pass
+
+    def change_ai_mode(self, event=None):
+        self.ai_class = AI_MODES[self.ai_mode.get()]['ai_class']
+        self.ai_method = AI_MODES[self.ai_mode.get()]['ai_method']
+
+    def change_ai_timeout(self, event=None):
+        ai_timeout = simpledialog.askfloat(
+            'AI Timeout', 'AI Timeout in sec?',
+            initialvalue=self.ai_timeout.get(),
+            minvalue=0.1, maxvalue=60000.0)
+        if ai_timeout is not None:
+            self.ai_timeout.set(ai_timeout)
 
     def about(self, event=None):
         """Action on About."""
         self.winAbout = WinAbout(self.parent)
 
-    def restore(self, event=None):
+    def restore_view(self, event=None):
         self.winfo_toplevel().geometry('')
         center(self.parent, self.screen_size)
 
@@ -936,7 +1051,7 @@ class WinMain(ttk.Frame):
         self._cfg_to_ui()
         # force resize for redrawing widgets correctly
         # w, h = self.parent.winfo_width(), self.parent.winfo_height()
-        self.parent.update()
+        self.parent.update_idletasks()
 
     def load_settings(self):
         self.cfg = load_config(self.cfg_filepath)
@@ -952,12 +1067,16 @@ class WinMain(ttk.Frame):
 
     def computer_moves(self):
         if not self.board.is_full():
-            coord = self.game_ai_class().get_best_move(
+            coord = self.ai_class().get_best_move(
                 self.board,
-                self.ai_time_limit, self.method, max_depth=-1,
+                self.ai_timeout.get(), self.ai_method, max_depth=-1,
                 verbose=self.verbose >= D_VERB_LVL)
             self.board.do_move(coord)
-            self.history.append(coord)
+            self.undo_history.append(coord)
+            if self.redo_history and coord == self.redo_history[-1]:
+                self.redo_history.pop()
+            else:
+                self.redo_history = []
             self.frmBoard.refresh()
             self.check_win()
 
@@ -981,7 +1100,7 @@ def mnk_game_gui(*_args, **_kws):
 
 if __name__ == '__main__':
     mnk_game_gui(
-        # rows=6, cols=7, aligned=4, gravity=True,
-        rows=3, cols=3, aligned=3, gravity=False,
+        # rows=6, cols=7, num_win=4, gravity=True,
+        rows=3, cols=3, num_win=3, gravity=False,
         ai_mode='alphabeta', computer_plays=False,
-        ai_time_limit=0.1, verbose=VERB_LVL['lowest'])
+        ai_timeout=0.5, verbose=VERB_LVL['lowest'])

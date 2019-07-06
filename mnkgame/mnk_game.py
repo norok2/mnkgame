@@ -32,27 +32,11 @@ from mnkgame import INFO
 from mnkgame import VERB_LVL, D_VERB_LVL
 from mnkgame import msg
 
-from mnkgame.util import prepare_game
+from mnkgame.util import make_board
+from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
 
 # ======================================================================
-AI_MODES = (
-    # 'alphabeta_jit',
-    'alphabeta',
-    'negamax',
-    # 'pvs',
-    # 'alphabeta_hashing',
-    'random')
-USER_INTERFACES = (
-    'auto',
-    'gui',
-    # 'tui',
-    'cli')
-ALIASES = dict(
-    custom=None,
-    tictactoe=dict(rows=3, cols=3, aligned=3, gravity=False),
-    connect4=dict(rows=6, cols=7, aligned=4, gravity=True),
-    gomoku=dict(rows=15, cols=15, aligned=5, gravity=False),
-)
+
 
 
 # ======================================================================
@@ -102,7 +86,7 @@ def handle_arg():
         type=int, default=3,
         help='number of cols for the board [%(default)s]')
     arg_parser.add_argument(
-        '-k', '--aligned', metavar='N',
+        '-k', '--num_win', metavar='N',
         type=int, default=3,
         help='number of aligned pieces required for winning [%(default)s]')
     arg_parser.add_argument(
@@ -111,12 +95,13 @@ def handle_arg():
         help='use gravitataion-rule variant [%(default)s]')
     arg_parser.add_argument(
         '-a', '--ai_mode', metavar='MODE',
-        choices=AI_MODES, type=str, default=AI_MODES[0],
+        choices=list(AI_MODES.keys()),
+        type=str, default=list(AI_MODES.keys())[0],
         help='AI mode [%(default)s|(%(choices)s)]')
     arg_parser.add_argument(
-        '-t', '--ai_time_limit', metavar='X',
+        '-t', '--ai_timeout', metavar='X',
         type=float, default=4.0,
-        help='time limit for AI move in sec [%(default)s]')
+        help='AI move timeout in sec [%(default)s]')
     arg_parser.add_argument(
         '-c', '--computer_plays',
         action='store_true',
@@ -156,7 +141,7 @@ def main():
         kws.update(ALIASES[alias])
 
     if args.verbose >= D_VERB_LVL:
-        msg('I: m={rows} (rows),  n={cols} (cols),  k={aligned} (aligned),'
+        msg('I: m={rows} (rows),  n={cols} (cols),  k={num_win} (num_win),'
             '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format(**kws),
             fmt=not args.ugly)
 

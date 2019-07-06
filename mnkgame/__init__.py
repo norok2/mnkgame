@@ -34,7 +34,7 @@ INFO = {
     'contrib': (
         'Riccardo Metere <rick@metere.it>',
     ),
-    'copyright': 'Copyright (C) 2014-2018',
+    'copyright': 'Copyright (C) 2019',
     'license': 'GNU General Public License version 3 or later (GPLv3+)',
     'notice':
         """

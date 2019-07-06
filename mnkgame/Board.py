@@ -17,11 +17,11 @@ class Board:
             self,
             rows,
             cols,
-            win_len,
+            num_win,
             reprs=('-', 'X', 'O')):
         self.rows = rows
         self.cols = cols
-        self.win_len = win_len
+        self.num_win = num_win
         self._REPRS = reprs
         self.matrix = None
         self.turn = None
@@ -38,7 +38,7 @@ class Board:
 
     @property
     def _win_score(self):
-        return self.max_num_moves * self.win_len
+        return self.max_num_moves * self.max_num_moves * self.num_win
 
     @property
     def win_score(self):
@@ -164,23 +164,23 @@ class Board:
         else:
             matrix = self.matrix
             rows, cols = self.rows, self.cols
-            win_len = self.win_len
+            num_win = self.num_win
             # check diagonals
-            for i in range(rows - win_len + 1):
-                for j in range(cols - win_len + 1):
-                    square = matrix[i:i + win_len, j:j + win_len]
+            for i in range(rows - num_win + 1):
+                for j in range(cols - num_win + 1):
+                    square = matrix[i:i + num_win, j:j + num_win]
                     if np.all(np.diag(np.fliplr(square)) == turn) \
                             or np.all(np.diag(square) == turn):
                         return turn
             # check horizontal
             for i in range(rows):
-                for j in range(cols - win_len + 1):
-                    if np.all(matrix[i, j:j + win_len] == turn):
+                for j in range(cols - num_win + 1):
+                    if np.all(matrix[i, j:j + num_win] == turn):
                         return turn
             # check vertical
-            for i in range(rows - win_len + 1):
+            for i in range(rows - num_win + 1):
                 for j in range(cols):
-                    if np.all(matrix[i:i + win_len, j] == turn):
+                    if np.all(matrix[i:i + num_win, j] == turn):
                         return turn
             return self.EMPTY
 
@@ -198,31 +198,31 @@ class Board:
             result = []
             matrix = self.matrix
             rows, cols = self.rows, self.cols
-            win_len = self.win_len
+            num_win = self.num_win
             # check diagonals
-            for i in range(rows - win_len + 1):
-                for j in range(cols - win_len + 1):
-                    square = matrix[i:i + win_len, j:j + win_len]
+            for i in range(rows - num_win + 1):
+                for j in range(cols - num_win + 1):
+                    square = matrix[i:i + num_win, j:j + num_win]
                     if np.all(np.diag(np.fliplr(square)) == turn):
                         result.append(
-                            ((i + win_len - 1, j), (i, j + win_len - 1)))
+                            ((i + num_win - 1, j), (i, j + num_win - 1)))
                     if np.all(np.diag(square) == turn):
                         result.append(
-                            ((i, j), (i + win_len - 1, j + win_len - 1)))
+                            ((i, j), (i + num_win - 1, j + num_win - 1)))
             # check horizontal
             for i in range(rows):
-                for j in range(cols - win_len + 1):
-                    if np.all(matrix[i, j:j + win_len] == turn):
-                        result.append(((i, j), (i, j + win_len - 1)))
+                for j in range(cols - num_win + 1):
+                    if np.all(matrix[i, j:j + num_win] == turn):
+                        result.append(((i, j), (i, j + num_win - 1)))
             # check vertical
-            for i in range(rows - win_len + 1):
+            for i in range(rows - num_win + 1):
                 for j in range(cols):
-                    if np.all(matrix[i:i + win_len, j] == turn):
-                        result.append(((i, j), (i + win_len - 1, j)))
+                    if np.all(matrix[i:i + num_win, j] == turn):
+                        result.append(((i, j), (i + num_win - 1, j)))
             return result
 
     def get_score(self):
-        return (self.max_num_moves - self.num_moves()) \
+        return (self.max_num_moves - self.num_moves() - 1) \
                * (1 if self.turn == self.TURNS[0] else -1)
 
     @staticmethod
