@@ -32,7 +32,7 @@ from mnkgame import INFO
 from mnkgame import VERB_LVL, D_VERB_LVL
 from mnkgame import msg
 
-from mnkgame.util import make_board
+from mnkgame.util import is_gui_available, is_tui_availabe, make_board
 from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
 
 # ======================================================================
@@ -149,7 +149,12 @@ def main():
 
     ui = kws.pop('ui')
     if ui == 'auto':
-        ui = 'cli'
+        if is_gui_available():
+            ui = 'gui'
+        elif is_tui_available():
+            ui = 'tui'
+        else:
+            ui = 'cli'
     if ui in USER_INTERFACES[1:]:
         ui_module_name = ui_name = 'mnk_game_' + ui
         ui_module = importlib.import_module('mnkgame.' + ui_module_name)

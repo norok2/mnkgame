@@ -204,7 +204,7 @@ def auto_convert(
 
 
 # ======================================================================
-def get_curr_screen_geometry():
+def get_screen_geometry(from_all=False):
     """
     Workaround to get the size of the current screen in a multi-screen setup.
 
@@ -212,12 +212,17 @@ def get_curr_screen_geometry():
         geometry (str): The standard Tk geometry string.
             [width]x[height]+[left]+[top]
     """
-    temp = tk.Tk()
-    temp.update_idletasks()
-    temp.attributes('-fullscreen', True)
-    temp.state('iconic')
-    geometry = temp.winfo_geometry()
-    temp.destroy()
+    root = tk.Tk()
+    if from_all:
+        width = root.winfo_screenwidth()
+        height = root.winfo_screenheight()
+        geometry = str(Geometry(width=width, height=height))
+    else:
+        root.update_idletasks()
+        root.attributes('-fullscreen', True)
+        root.state('iconic')
+        geometry = root.winfo_geometry()
+    root.destroy()
     return geometry
 
 
@@ -550,16 +555,17 @@ class CanvasCell(tk.Canvas):
                 coord = self.row, self.col
             else:
                 coord = self.col
-            self.board.do_move(coord)
-            self.parent.parent.undo_history.append(coord)
-            if self.parent.parent.redo_history and \
-                    coord == self.parent.parent.redo_history[-1]:
-                self.parent.parent.redo_history.pop()
-            else:
-                self.parent.parent.redo_history = []
-            self.parent.parent.check_win()
-            self.parent.refresh()
-        if self.parent.enabled:
+            if self.board.do_move(coord):
+                self.parent.parent.computer_plays = True
+                self.parent.parent.undo_history.append(coord)
+                if self.parent.parent.redo_history and \
+                        coord == self.parent.parent.redo_history[-1]:
+                    self.parent.parent.redo_history.pop()
+                else:
+                    self.parent.parent.redo_history = []
+                self.parent.parent.check_win()
+                self.parent.refresh()
+        if self.parent.enabled and self.parent.parent.computer_plays:
             self.parent.parent.computer_moves()
 
 
@@ -757,9 +763,6 @@ class WinMain(ttk.Frame):
         self.redo_history = []
 
         self.screen_size = screen_size
-        self.init_size = int(
-            ((self.screen_size.width / self.board.cols / 3)
-             + (self.screen_size.height / self.board.rows / 3)) / 2)
 
         # get_val config data
         cfg = {}
@@ -790,14 +793,20 @@ class WinMain(ttk.Frame):
         self.menu_font = tk.font.Font(font=self.mnuMain['font'])
 
         # :: define UI items
-        self.frmBoard = FrameBoard(self, self.init_size)
+        self.frmBoard = FrameBoard(self, self.optim_cell_size)
 
         self.parent.minsize(
-            self.cols.get() * self.init_size // 5,
-            self.rows.get() * self.init_size // 5
+            self.cols.get() * self.optim_cell_size // 5,
+            self.rows.get() * self.optim_cell_size // 5
             + 4 * self.menu_font.actual()['size'])
 
         center(self.parent, self.screen_size)
+
+    @property
+    def optim_cell_size(self):
+        return int(
+            ((self.screen_size.width / self.board.cols / 3)
+             + (self.screen_size.height / self.board.rows / 3)) / 2)
 
     # --------------------------------
     def _ui_to_cfg(self):
@@ -836,7 +845,7 @@ class WinMain(ttk.Frame):
         self.mnuGame.add_cascade(
             label='New', underline=0, menu=self.mnuNewGame)
         self.mnuNewGame.add_command(
-            label='Same as current', underline=1, command=self.new_game,
+            label='...as current', underline=3, command=self.new_game,
             accelerator='Ctrl+N')
         self.mnuNewGame.add_separator()
         for alias, info in ALIASES.items():
@@ -942,12 +951,12 @@ class WinMain(ttk.Frame):
 
     def _new_game(self, **_kws):
         self.board = make_board(**_kws)
-        self.frmBoard = FrameBoard(self, self.init_size)
-        # self.parent.geometry(str(Geometry(
-        #     width=self.cols.get() * self.init_size,
-        #     height=self.rows.get() * self.init_size
-        #            + 4 * self.menu_font.actual()['size'])))
-        # center(self.parent, self.screen_size)
+        self.rows.set(self.board.rows)
+        self.cols.set(self.board.cols)
+        self.num_win.set(self.board.num_win)
+        self.gravity.set(hasattr(self.board, 'has_gravity'))
+        self.frmBoard = FrameBoard(self, self.optim_cell_size)
+        self.restore_view()
         self.new_game()
 
     def new_aliased(self, event=None):
@@ -955,7 +964,6 @@ class WinMain(ttk.Frame):
                 'Continue', 'This will start a new game. Are you sure?'):
             alias = self.game_alias.get()
             self._new_game(**ALIASES[alias])
-
 
     def new_custom(self, event=None):
         if self.board.is_empty() or messagebox.askokcancel(
@@ -974,14 +982,10 @@ class WinMain(ttk.Frame):
                 'Gravity', 'Has Gravity', initialvalue=self.gravity.get(),
                 minvalue=0, maxvalue=1))
             kws = dict(
-                rows=rows
-                    if rows is not None else self.rows.get(),
-                cols=cols
-                    if cols is not None else self.cols.get(),
-                num_win=num_win
-                    if num_win is not None else self.num_win.get(),
-                gravity=gravity
-                    if gravity is not None else self.gravity.get())
+                rows=rows if rows is not None else self.rows.get(),
+                cols=cols if cols is not None else self.cols.get(),
+                num_win=num_win if num_win is not None else self.num_win.get(),
+                gravity=gravity if gravity is not None else self.gravity.get())
             alias = guess_alias(**kws)
             self.game_alias.set(alias)
             self._new_game(**kws)
@@ -1019,6 +1023,7 @@ class WinMain(ttk.Frame):
 
     def switch_sides(self, event=None):
         if self.frmBoard.enabled:
+            self.computer_plays = not self.computer_plays
             self.computer_moves()
 
     def hint(self, event=None):
@@ -1041,7 +1046,13 @@ class WinMain(ttk.Frame):
         self.winAbout = WinAbout(self.parent)
 
     def restore_view(self, event=None):
-        self.winfo_toplevel().geometry('')
+        new_geometry = Geometry(self.parent.geometry())
+        new_geometry.width = int(self.cols.get() * self.optim_cell_size)
+        new_geometry.height = int(
+            self.rows.get() * self.optim_cell_size
+                   + 2 * self.menu_font.actual()['size'])
+        self.parent.geometry(new_geometry)
+        print(new_geometry)
         center(self.parent, self.screen_size)
 
     def advanced_settings(self, event=None):
@@ -1066,31 +1077,50 @@ class WinMain(ttk.Frame):
         self._cfg_to_ui()
 
     def computer_moves(self):
-        if not self.board.is_full():
+        if not self.board.is_full() and self.computer_plays:
             coord = self.ai_class().get_best_move(
                 self.board,
                 self.ai_timeout.get(), self.ai_method, max_depth=-1,
                 verbose=self.verbose >= D_VERB_LVL)
-            self.board.do_move(coord)
-            self.undo_history.append(coord)
-            if self.redo_history and coord == self.redo_history[-1]:
-                self.redo_history.pop()
-            else:
-                self.redo_history = []
-            self.frmBoard.refresh()
-            self.check_win()
+            if self.board.do_move(coord):
+                self.computer_plays = False
+                self.undo_history.append(coord)
+                if self.redo_history and coord == self.redo_history[-1]:
+                    self.redo_history.pop()
+                else:
+                    self.redo_history = []
+                self.frmBoard.refresh()
+                self.check_win()
 
     def check_win(self):
+        ask_new = True
         if self.board.winner(self.board.turn) == self.board.turn:
+            self.frmBoard.refresh()
             self.frmBoard.freeze()
             self.frmBoard.show_wins()
+            title = 'Victory!'
+            text = 'You LOST!' if not self.computer_plays else 'You WON!'
+            icon = 'error' if not self.computer_plays else 'info'
         elif self.board.is_full():
+            self.frmBoard.refresh()
             self.frmBoard.freeze()
+            title = 'Draw!'
+            text = 'The game ended with a draw!'
+            icon = 'question'
+        else:
+            ask_new = False
+        if ask_new:
+            answer = messagebox.askquestion(
+                title=title,
+                message='\n\n'.join([text, 'Do you want to play a new game?']),
+                icon=icon)
+            if answer == 'yes':
+                self.new_game()
 
 
 # ======================================================================
 def mnk_game_gui(*_args, **_kws):
-    screen_size = Geometry(get_curr_screen_geometry())
+    screen_size = Geometry(get_screen_geometry(True))
     root = tk.Tk()
     app = WinMain(root, screen_size, *_args, **_kws)
     resources_path = PATH['resources']

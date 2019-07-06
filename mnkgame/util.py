@@ -39,6 +39,7 @@ def guess_alias(**_kws):
             return alias
     return 'custom'
 
+
 def make_board(
         rows,
         cols,
@@ -49,3 +50,29 @@ def make_board(
     else:
         from mnkgame.Board import Board as BoardClass
     return BoardClass(rows, cols, num_win)
+
+
+def is_gui_available():
+    try:
+        import tkinter as tk
+    except ImportError:
+        import Tkinter as tk
+    except ImportError:
+        tk = None
+
+    if tk is not None:
+        try:
+            root = tk.Tk()
+        except tk.TclError:
+            result = False
+        else:
+            result = True
+        finally:
+            root.destroy()
+    else:
+        result = False
+    return False
+
+
+def is_tui_available():
+    return False

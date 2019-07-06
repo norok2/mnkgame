@@ -19,60 +19,82 @@ class Board:
             cols,
             num_win,
             reprs=('-', 'X', 'O')):
-        self.rows = rows
-        self.cols = cols
-        self.num_win = num_win
-        self._REPRS = reprs
-        self.matrix = None
-        self.turn = None
+        self._rows = rows
+        self._cols = cols
+        self._num_win = num_win
+        self._reprs = reprs
+        self._matrix = None
+        self._turn = None
+        self._max_num_moves = rows * cols
         self.reset()
 
     def reset(self):
-        self.matrix = np.full(
-            (self.rows, self.cols), self.EMPTY, dtype=np.uint8)
-        self.turn = self.TURNS[-1]
+        self._matrix = np.full(
+            (self._rows, self._cols), self.EMPTY, dtype=np.uint8)
+        self._turn = self.TURNS[-1]
+
+    @property
+    def rows(self):
+        return self._rows
+
+    @property
+    def cols(self):
+        return self._cols
+
+    @property
+    def num_win(self):
+        return self._num_win
+
+    @property
+    def matrix(self):
+        return self._matrix
+
+    @property
+    def turn(self):
+        return self._turn
 
     @property
     def max_num_moves(self):
-        return self.rows * self.cols
+        return self._max_num_moves
 
     @property
     def _win_score(self):
-        return self.max_num_moves * self.max_num_moves * self.num_win
+        return self.max_num_moves * self.max_num_moves * self._num_win
 
     @property
     def win_score(self):
-        return (self.max_num_moves - self.num_moves()) * self._win_score
+        # return (self.max_num_moves - self.num_moves()) * self._win_score
+        return np.inf
 
     def __repr__(self):
         text = ''
-        for i in range(self.rows):
-            text += ''.join([self._REPRS[x] for x in self.matrix[i, :]]) + '\n'
+        for i in range(self._rows):
+            text += ''.join([self._reprs[x] for x in self._matrix[i, :]]) + '\n'
         return text[:-1]
 
     def __str__(self):
         text = ''
         hor, ver, cross = self._STR_BORDERS
-        reprs = (' ',) + self._REPRS[1:]
-        hor_sep = cross + (hor + cross) * self.cols + '\n'
+        reprs = (' ',) + self._reprs[1:]
+        hor_sep = cross + (hor + cross) * self._cols + '\n'
         if self._STR_SHOW_COL_COORDS:
             header = cross \
                      + cross.join(
-                [str(i % NUM_DIGITS) for i in range(self.cols)]) \
+                [str(i % NUM_DIGITS) for i in range(self._cols)]) \
                      + cross + '\n'
         else:
             header = hor_sep
         text += header
-        for i in range(self.rows):
+        for i in range(self._rows):
             text += \
                 (str(i % NUM_DIGITS) if self._STR_SHOW_ROW_COORDS else ver) \
-                + ver.join([reprs[x] for x in self.matrix[i, :]]) \
+                + ver.join([reprs[x] for x in self._matrix[i, :]]) \
                 + ver + '\n' + hor_sep
         return text[:-1]
 
     def next_turn(self, turn=None):
         if turn is None:
-            turn = self.turn
+            turn = self._turn
 
         # : more general implementation
         # if turn in self.TURNS:
@@ -91,45 +113,45 @@ class Board:
     prev_turn = next_turn
 
     def is_empty(self):
-        return np.all(self.matrix == self.EMPTY)
+        return np.all(self._matrix == self.EMPTY)
 
     def is_valid(self):
         raise abs(
-            np.sum(self.matrix == self.TURNS[0])
-            - np.sum(self.matrix == self.TURNS[1])) in {0, 1}
+            np.sum(self._matrix == self.TURNS[0])
+            - np.sum(self._matrix == self.TURNS[1])) in {0, 1}
 
     def is_full(self):
-        return not np.any(self.matrix == self.EMPTY)
+        return not np.any(self._matrix == self.EMPTY)
 
     def is_valid_move(self, coord):
-        return 0 <= coord[0] < self.rows and 0 <= coord[1] < self.cols
+        return 0 <= coord[0] < self._rows and 0 <= coord[1] < self._cols
 
     def is_avail_move(self, coord):
-        return self.matrix[coord] == self.EMPTY
+        return self._matrix[coord] == self.EMPTY
 
     def avail_moves(self):
         return set(zip(
-            *[idx.tolist() for idx in np.where(self.matrix == self.EMPTY)]))
+            *[idx.tolist() for idx in np.where(self._matrix == self.EMPTY)]))
 
     def sorted_moves(self):
         return sorted(
             self.avail_moves(),
             key=lambda x: (
-                ((x[0] - self.rows // 2) ** 2
-                 + (x[1] - self.cols // 2) ** 2)))
+                ((x[0] - self._rows // 2) ** 2
+                 + (x[1] - self._cols // 2) ** 2)))
 
     def do_move(self, coord):
         if coord in self.avail_moves():
-            self.turn = self.next_turn()
-            self.matrix[coord] = self.turn
+            self._turn = self.next_turn()
+            self._matrix[coord] = self._turn
             return True
         else:
             return False
 
     def undo_move(self, coord):
-        if self.is_valid_move(coord) and self.matrix[coord] != self.EMPTY:
-            self.turn = self.prev_turn()
-            self.matrix[coord] = self.EMPTY
+        if self.is_valid_move(coord) and self._matrix[coord] != self.EMPTY:
+            self._turn = self.prev_turn()
+            self._matrix[coord] = self.EMPTY
             return True
         else:
             return False
@@ -146,10 +168,10 @@ class Board:
         return all([self.undo_move(coord) for coord in coords])
 
     def num_moves(self):
-        return int(np.sum(self.matrix != self.EMPTY))
+        return int(np.sum(self._matrix != self.EMPTY))
 
     def num_moves_left(self):
-        return int(np.sum(self.matrix == self.EMPTY))
+        return int(np.sum(self._matrix == self.EMPTY))
 
     def winner(self, turn=None):
         if self.is_empty():
@@ -162,9 +184,9 @@ class Board:
                     break
             return result
         else:
-            matrix = self.matrix
-            rows, cols = self.rows, self.cols
-            num_win = self.num_win
+            matrix = self._matrix
+            rows, cols = self._rows, self._cols
+            num_win = self._num_win
             # check diagonals
             for i in range(rows - num_win + 1):
                 for j in range(cols - num_win + 1):
@@ -196,9 +218,9 @@ class Board:
             return result
         else:
             result = []
-            matrix = self.matrix
-            rows, cols = self.rows, self.cols
-            num_win = self.num_win
+            matrix = self._matrix
+            rows, cols = self._rows, self._cols
+            num_win = self._num_win
             # check diagonals
             for i in range(rows - num_win + 1):
                 for j in range(cols - num_win + 1):
@@ -223,7 +245,7 @@ class Board:
 
     def get_score(self):
         return (self.max_num_moves - self.num_moves() - 1) \
-               * (1 if self.turn == self.TURNS[0] else -1)
+               * (1 if self._turn == self.TURNS[0] else -1)
 
     @staticmethod
     def extrema_to_coords(begin, end):
