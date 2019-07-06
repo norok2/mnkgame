@@ -144,15 +144,14 @@ def negamax_alphabeta_hashing(
         alpha=-np.inf,
         beta=np.inf,
         soft=True,
-        hashtable=None):
-    # todo: fix hashing
+        hash_table=None):
     clock = time.time()
     if max_duration < 0:
         return np.nan
-    if hashtable is None:
-        hashtable = {}
-    if (board, depth) in hashtable:
-        return hashtable[(board, depth)]
+    if hash_table is None:
+        hash_table = {}
+    if (repr(board), board.turn, depth) in hash_table:
+        return -hash_table[(repr(board), board.turn, depth)]
     if board.winner(board.turn) == board.turn:
         return -board.win_score
     if depth == 0 or board.is_full():
@@ -163,13 +162,14 @@ def negamax_alphabeta_hashing(
         value = -negamax_alphabeta_hashing(
             board, depth - 1, max_duration - (time.time() - clock),
             -beta if soft else alpha, -alpha if soft else beta,
-            soft, hashtable)
+            soft, hash_table)
         board.undo_move(coord)
         best_value = max(value, best_value)
         alpha = max(best_value, alpha)
         if alpha >= beta:
             break
-    hashtable[(board, depth)] = best_value
+    if (repr(board), board.turn, depth) not in hash_table:
+        hash_table[(repr(board), board.turn, depth)] = best_value
     return best_value
 
 
@@ -197,8 +197,8 @@ class GameAiSearchTree(GameAi):
             raise ValueError('Unknown search-tree method.')
         method_kws = dict(method_kws) if method_kws is not None else {}
         if 'hashing' in method:
-            hashtable = {}
-            method_kws.update(dict(hashtable=hashtable))
+            hash_table = {}
+            method_kws.update(dict(hash_table=hash_table))
         if not max_depth:
             max_depth = 0
         elif max_depth < 0:
@@ -215,7 +215,7 @@ class GameAiSearchTree(GameAi):
         for depth in range(1, max(board.num_moves_left(), max_depth) + 1):
             new_choices = []
             depth_clock = time.time()
-            val = -np.inf
+            val = best_val
             for coord in board.sorted_moves():
                 board.do_move(coord)
                 val = -func(
@@ -237,6 +237,8 @@ class GameAiSearchTree(GameAi):
                 print(feedback)
             if callable(callback):
                 callback(**locals())
+            if best_val in (np.inf, -np.inf):
+                break
             if max_duration - (time.time() - clock) < 0.0:
                 break
         if randomize and len(choices) > 1:
