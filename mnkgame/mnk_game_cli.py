@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import ast  # Abstract Syntax Trees
+import pickle
 
 from mnkgame import prettify
 from mnkgame import D_VERB_LVL
@@ -49,12 +50,15 @@ def handle_move(
         board,
         move,
         is_computer,
+        undo_history,
+        redo_history,
         ask_continue=True,
         pretty=True):
     if is_computer:
         msg('Computer Move is: ' + str(move),
             fmt='{t.magenta}' if pretty else False)
-    board.do_move(move)
+    if board.do_move(move):
+        undo_history.append(move)
     if board.winner(board.turn) == board.turn:
         result = handle_endgame(
             board,
@@ -132,6 +136,9 @@ def mnk_game_cli(
     ai_class = AI_MODES[ai_mode]['ai_class']
     ai_method = AI_MODES[ai_mode]['ai_method']
     board = make_board(rows, cols, num_win, gravity)
+    undo_history = []
+    redo_history = []
+    filepath = 'mnkgame-saved.pickle'
     choice = 'n'
     continue_game = True
     first_computer_plays = computer_plays
@@ -140,11 +147,12 @@ def mnk_game_cli(
             print('\n' + colorized_board(board, pretty), sep='')
         if computer_plays:
             choice = ai_class().get_best_move(
-                board, ai_timeout, method, max_depth=-1,
+                board, ai_timeout, ai_method, max_depth=-1,
                 verbose=verbose >= D_VERB_LVL)
         else:
             menu_choices = dict(
-                q='quit', n='new game', s='switch sides', h='hint')
+                q='quit', n='new game', l='load game', s='save game',
+                u='undo', r='redo', w='switch sides', h='hint')
             if choice is not None:
                 choice = get_human_move(
                     board, menu_choices, pretty=pretty)
@@ -158,15 +166,42 @@ def mnk_game_cli(
                 first_computer_plays = not first_computer_plays
                 computer_plays = first_computer_plays
                 board.reset()
+            elif choice == 'l':
+                data = pickle.load(open(filepath, 'rb'))
+                undo_history = data.pop('undo_history')
+                redo_history = data.pop('redo_history')
+                computer_plays = data.pop('computer_plays')
+                board = make_board(**data)
+                board.do_moves(undo_history)
+                board.undo_moves(redo_history)
+                msg('Load data from: `{}`'.format(filepath))
             elif choice == 's':
+                data = dict(
+                    rows=rows, cols=cols, num_win=num_win, gravity=gravity,
+                    undo_history=undo_history, redo_history=redo_history,
+                    computer_plays=computer_plays)
+                pickle.dump(data, open(filepath, 'wb+'))
+                msg('Save data to: `{}`'.format(filepath))
+            elif choice == 'u':
+                if undo_history:
+                    move = undo_history.pop()
+                    redo_history.append(move)
+                    board.undo_move(move)
+            elif choice == 'r':
+                if redo_history:
+                    move = redo_history.pop()
+                    undo_history.append(move)
+                    board.do_move(move)
+            elif choice == 'w':
                 msg('I: switching sides (computer plays)!', fmt=pretty)
             elif choice == 'h':
                 move = ai_class().get_best_move(
-                    board, ai_timeout, method, max_depth=-1,
+                    board, ai_timeout, ai_method, max_depth=-1,
                     verbose=True)
                 msg('I: Best move for computer: ' + str(move), fmt=pretty)
                 choice = None
-        if choice is not None:
+        if not isinstance(choice, str) or choice not in 'lsur':
             continue_game = handle_move(
-                board, choice, computer_plays, True, pretty)
+                board, choice, computer_plays, undo_history, redo_history,
+                True, pretty)
             computer_plays = not computer_plays

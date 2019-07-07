@@ -664,8 +664,8 @@ class WinMain(ttk.Frame):
             self.redo_history = data.pop('redo_history')
             self.computer_plays = data.pop('computer_plays')
             self.prepare_game(**data)
-            for move in self.undo_history:
-                self.board.do_move(move)
+            self.board.do_moves(self.undo_history)
+            self.board.undo_moves(self.redo_history)
             self.frmBoard.refresh()
 
     def save_game(self, event=None):
