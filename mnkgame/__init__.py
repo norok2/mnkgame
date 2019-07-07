@@ -15,6 +15,7 @@ from __future__ import (
 # :: Python Standard Library Imports
 import itertools  # Functions creating iterators for efficient looping
 import os  # Miscellaneous operating system interfaces
+import sys  # System-specific parameters and functions
 import re  # Regular expression operations
 import appdirs  # Determine appropriate platform-specific dirs
 import pkg_resources  # Manage package resource (from setuptools module)
@@ -63,6 +64,8 @@ except ImportError:
         from blessed import Terminal
     except ImportError:
         Terminal = None
+
+IS_TTY = not os.isatty(sys.stdout.fileno())
 
 # ======================================================================
 # Greetings and Logos
@@ -364,7 +367,7 @@ def prettify(text, pretty=False):
 # ======================================================================
 def print_logo(
         size='normal',
-        pretty=True,
+        pretty=IS_TTY,
         **_kws):
     """
     Print the standard logo.
@@ -389,7 +392,7 @@ def print_logo(
 # ======================================================================
 def print_greetings(
         mode='inline',
-        pretty=True,
+        pretty=IS_TTY,
         **_kws):
     """
     Print the standard greeting.

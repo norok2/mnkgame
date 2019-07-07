@@ -1,3 +1,5 @@
+from mnkgame import IS_TTY
+
 from mnkgame.GameAiSearchTree import GameAiSearchTree
 from mnkgame.GameAiRandom import GameAiRandom
 
@@ -8,6 +10,8 @@ AI_MODES = dict(
         ai_class=GameAiSearchTree, ai_method='negamax'),
     scout=dict(
         ai_class=GameAiSearchTree, ai_method='negascout'),
+    caching=dict(
+        ai_class=GameAiSearchTree, ai_method='negamax_alphabeta_caching'),
     hashing=dict(
         ai_class=GameAiSearchTree, ai_method='negamax_alphabeta_hashing'),
     more_random=dict(
@@ -53,14 +57,17 @@ def make_board(
 
 
 def is_gui_available():
+    tk = None
     try:
         import tkinter as tk
     except ImportError:
-        import Tkinter as tk
-    except ImportError:
-        tk = None
+        try:
+            import Tkinter as tk
+        except ImportError:
+            pass
 
     if tk is not None:
+        root = None
         try:
             root = tk.Tk()
         except tk.TclError:
@@ -68,11 +75,12 @@ def is_gui_available():
         else:
             result = True
         finally:
-            root.destroy()
+            if root is not None:
+                root.destroy()
     else:
         result = False
-    return False
+    return result
 
 
 def is_tui_available():
-    return False
+    return IS_TTY

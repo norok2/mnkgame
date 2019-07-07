@@ -32,11 +32,8 @@ from mnkgame import INFO
 from mnkgame import VERB_LVL, D_VERB_LVL
 from mnkgame import msg
 
-from mnkgame.util import is_gui_available, is_tui_availabe, make_board
+from mnkgame.util import is_gui_available, is_tui_available, make_board
 from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
-
-# ======================================================================
-
 
 
 # ======================================================================
@@ -100,7 +97,7 @@ def handle_arg():
         help='AI mode [%(default)s|(%(choices)s)]')
     arg_parser.add_argument(
         '-t', '--ai_timeout', metavar='X',
-        type=float, default=4.0,
+        type=float, default=5.0,
         help='AI move timeout in sec [%(default)s]')
     arg_parser.add_argument(
         '-c', '--computer_plays',

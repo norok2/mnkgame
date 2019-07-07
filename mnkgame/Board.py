@@ -69,8 +69,10 @@ class Board:
     def __repr__(self):
         text = ''
         for i in range(self._rows):
-            text += ''.join([self._reprs[x] for x in self._matrix[i, :]]) + '\n'
-        return text[:-1]
+            text += ''.join(
+                [self._reprs[x] for x in self._matrix[i, :]]) + '\n'
+        text += self._reprs[self._turn]
+        return text
 
     def __str__(self):
         text = ''
@@ -123,8 +125,8 @@ class Board:
     def is_full(self):
         return not np.any(self._matrix == self.EMPTY)
 
-    def is_valid_move(self, coord):
-        return 0 <= coord[0] < self._rows and 0 <= coord[1] < self._cols
+    def is_valid_move(self, move):
+        return 0 <= move[0] < self._rows and 0 <= move[1] < self._cols
 
     def is_avail_move(self, coord):
         return self._matrix[coord] == self.EMPTY
@@ -148,24 +150,24 @@ class Board:
         else:
             return False
 
-    def undo_move(self, coord):
-        if self.is_valid_move(coord) and self._matrix[coord] != self.EMPTY:
+    def undo_move(self, move):
+        if self.is_valid_move(move) and self._matrix[move] != self.EMPTY:
             self._turn = self.prev_turn()
-            self._matrix[coord] = self.EMPTY
+            self._matrix[move] = self.EMPTY
             return True
         else:
             return False
 
-    def do_moves(self, coords, reset=True):
+    def do_moves(self, moves, reset=True):
         if reset:
             self.reset()
-        result = all([self.do_move(coord) for coord in coords])
+        result = all([self.do_move(move) for move in moves])
         if not result:
-            self.undo_moves(coords[::-1])
+            self.undo_moves(moves[::-1])
         return result
 
-    def undo_moves(self, coords):
-        return all([self.undo_move(coord) for coord in coords])
+    def undo_moves(self, moves):
+        return all([self.undo_move(move) for move in moves])
 
     def num_moves(self):
         return int(np.sum(self._matrix != self.EMPTY))
@@ -248,14 +250,14 @@ class Board:
                * (1 if self._turn == self.TURNS[0] else -1)
 
     @staticmethod
-    def extrema_to_coords(begin, end):
+    def extrema_to_moves(begin, end):
         diff = tuple(y - x for x, y in zip(begin, end))
         result = []
         if abs(diff[0]) == abs(diff[1]) or diff[0] == 0 or diff[1] == 0:
-            coord = begin
+            move = begin
             for _ in range(max(abs(x) for x in diff) + 1):
-                result.append(coord)
-                coord = tuple(
+                result.append(move)
+                move = tuple(
                     x + (1 if d > 0 else -1 if d < 0 else 0)
-                    for x, d in zip(coord, diff))
+                    for x, d in zip(move, diff))
         return result

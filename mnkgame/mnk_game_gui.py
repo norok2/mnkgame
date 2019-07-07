@@ -4,10 +4,8 @@
 (m,n,k)-game: graphical user interface.
 """
 import os
-import multiprocessing
-import collections
-import json
 import warnings
+import pickle
 
 try:
     import tkinter as tk
@@ -34,173 +32,6 @@ from mnkgame import INFO, PATH
 from mnkgame import print_greetings, prettify, MY_GREETINGS
 from mnkgame.util import make_board, guess_alias
 from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
-
-# ======================================================================
-# :: determine initial configuration
-try:
-    import appdirs
-
-    _app_dirs = appdirs.AppDirs(INFO['name'].lower(), INFO['author'])
-    _PATHS = {
-        'usr_cfg': _app_dirs.user_config_dir,
-        'sys_cfg': _app_dirs.site_config_dir,
-    }
-except ImportError:
-    _PATHS = {
-        'usr_cfg': os.path.realpath('.'),
-        'sys_cfg': os.path.dirname(__file__),
-    }
-
-CFG_FILENAME = 'config.json'
-CFG_DIRPATHS = (
-    _PATHS['usr_cfg'],
-    os.path.realpath('.'),
-    os.getenv('HOME'),
-    os.path.dirname(__file__),
-    _PATHS['sys_cfg'])
-
-
-# ======================================================================
-def default_config():
-    cfg = dict(
-        verbose=D_VERB_LVL,
-        use_mp=False,
-        num_processes=multiprocessing.cpu_count(),
-        gui_style_tk='default',
-        save_on_exit=True,
-    )
-    return cfg
-
-
-# ======================================================================
-def load_config(
-        cfg_filepath=CFG_FILENAME):
-    cfg = {}
-    if os.path.exists(cfg_filepath):
-        msg('Load configuration from `{}`.'.format(cfg_filepath))
-        try:
-            with open(cfg_filepath, 'r') as cfg_file:
-                cfg = json.load(cfg_file)
-        except json.JSONDecodeError:
-            pass
-    return cfg
-
-
-# ======================================================================
-def save_config(
-        config,
-        cfg_filepath=CFG_FILENAME):
-    msg('Save configuration from `{}`.'.format(cfg_filepath))
-    dirpath = os.path.dirname(cfg_filepath)
-    if not os.path.isdir(dirpath):
-        os.makedirs(dirpath)
-    with open(cfg_filepath, 'w') as cfg_file:
-        json.dump(config, cfg_file, sort_keys=True, indent=4)
-
-
-# ======================================================================
-def has_decorator(
-        text,
-        pre_decor='"',
-        post_decor='"'):
-    """
-    Determine if a string is delimited by some characters (decorators).
-
-    Args:
-        text (str): The text input string.
-        pre_decor (str): initial string decorator.
-        post_decor (str): final string decorator.
-
-    Returns:
-        has_decorator (bool): True if text is delimited by the specified chars.
-
-    Examples:
-        >>> has_decorator('"test"')
-        True
-        >>> has_decorator('"test')
-        False
-        >>> has_decorator('<test>', '<', '>')
-        True
-    """
-    return text.startswith(pre_decor) and text.endswith(post_decor)
-
-
-# ======================================================================
-def strip_decorator(
-        text,
-        pre_decor='"',
-        post_decor='"'):
-    """
-    Strip initial and final character sequences (decorators) from a string.
-
-    Args:
-        text (str): The text input string.
-        pre_decor (str): initial string decorator.
-        post_decor (str): final string decorator.
-
-    Returns:
-        text (str): the text without the specified decorators.
-
-    Examples:
-        >>> strip_decorator('"test"')
-        'test'
-        >>> strip_decorator('"test')
-        'test'
-        >>> strip_decorator('<test>', '<', '>')
-        'test'
-    """
-    begin = len(pre_decor) if text.startswith(pre_decor) else None
-    end = -len(post_decor) if text.endswith(post_decor) else None
-    return text[begin:end]
-
-
-# ======================================================================
-def auto_convert(
-        text,
-        pre_decor=None,
-        post_decor=None):
-    """
-    Convert value to numeric if possible, or strip delimiters from string.
-
-    Args:
-        text (str|int|float|complex): The text input string.
-        pre_decor (str): initial string decorator.
-        post_decor (str): final string decorator.
-
-    Returns:
-        val (int|float|complex): The numeric value of the string.
-
-    Examples:
-        >>> auto_convert('<100>', '<', '>')
-        100
-        >>> auto_convert('<100.0>', '<', '>')
-        100.0
-        >>> auto_convert('100.0+50j')
-        (100+50j)
-        >>> auto_convert('1e3')
-        1000.0
-        >>> auto_convert(1000)
-        1000
-        >>> auto_convert(1000.0)
-        1000.0
-    """
-    if isinstance(text, str):
-        if pre_decor and post_decor and \
-                has_decorator(text, pre_decor, post_decor):
-            text = strip_decorator(text, pre_decor, post_decor)
-        try:
-            val = int(text)
-        except (TypeError, ValueError):
-            try:
-                val = float(text)
-            except (TypeError, ValueError):
-                try:
-                    val = complex(text)
-                except (TypeError, ValueError):
-                    val = text
-    else:
-        val = text
-    return val
 
 
 # ======================================================================
@@ -265,7 +96,7 @@ def set_icon(
 def center(target, reference=None):
     target.update_idletasks()
     if reference is None:
-        geometry = get_curr_screen_geometry()
+        geometry = get_screen_geometry()
     elif not isinstance(reference, (str, Geometry)):
         reference.update_idletasks()
         geometry = reference.winfo_geometry()
@@ -453,7 +284,7 @@ class FrameBoard(tk.Frame):
     def show_wins(self, event=None):
         winning_series = self.board.winning_series()
         for winning_serie in winning_series:
-            coords = self.board.extrema_to_coords(*winning_serie)
+            coords = self.board.extrema_to_moves(*winning_serie)
             for (i, j) in coords:
                 self.cvsMatrix[i, j].highlight()
 
@@ -552,14 +383,14 @@ class CanvasCell(tk.Canvas):
     def on_click(self, event=None):
         if self.parent.enabled:
             if not hasattr(self.board, 'has_gravity'):
-                coord = self.row, self.col
+                move = self.row, self.col
             else:
-                coord = self.col
-            if self.board.do_move(coord):
+                move = self.col
+            if self.board.do_move(move):
                 self.parent.parent.computer_plays = True
-                self.parent.parent.undo_history.append(coord)
+                self.parent.parent.undo_history.append(move)
                 if self.parent.parent.redo_history and \
-                        coord == self.parent.parent.redo_history[-1]:
+                        move == self.parent.parent.redo_history[-1]:
                     self.parent.parent.redo_history.pop()
                 else:
                     self.parent.parent.redo_history = []
@@ -611,134 +442,6 @@ class WinAbout(tk.Toplevel):
 
 
 # ======================================================================
-class WinSettings(tk.Toplevel):
-    def __init__(self, parent, app):
-        self.settings = collections.OrderedDict((
-            ('use_mp', {'label': 'Use parallel processing', 'dtype': bool, }),
-            ('num_processes', {
-                'label': 'Number of parallel processes',
-                'dtype': int,
-                'values': {'start': 1,
-                           'stop': 2 * multiprocessing.cpu_count()},
-            }),
-            ('gui_style_tk', {
-                'label': 'GUI Style (Tk)',
-                'dtype': tuple,
-                'values': app.style.theme_names()
-            }),
-        ))
-        for name, info in self.settings.items():
-            self.settings[name]['default'] = app.cfg[name]
-        self.result = None
-
-        super(WinSettings, self).__init__(parent)
-        self.transient(parent)
-        self.parent = parent
-        self.app = app
-        self.title('{} Advanced Settings'.format(INFO['name']))
-        self.frm = ttk.Frame(self)
-        self.frm.pack(fill=tk.BOTH, expand=True)
-        self.frmMain = ttk.Frame(self.frm)
-        self.frmMain.pack(fill=tk.BOTH, padx=8, pady=8, expand=True)
-
-        self.frmSpacers = []
-
-        self.wdgOptions = {}
-        for name, info in self.settings.items():
-            if info['dtype'] == bool:
-                chk = ttk.Checkbutton(
-                    self.frmMain, text=info['label'])
-                chk.pack(fill=tk.X, padx=1, pady=1)
-                chk.set_val(info['default'])
-                self.wdgOptions[name] = {'chk': chk}
-            elif info['dtype'] == int:
-                frm = ttk.Frame(self.frmMain)
-                frm.pack(fill=tk.X, padx=1, pady=1)
-                lbl = ttk.Label(frm, text=info['label'])
-                lbl.pack(side=tk.LEFT, fill=tk.X, padx=1, pady=1, expand=True)
-                spb = ttk.Spinbox(frm, **info['values'])
-                spb.set_val(info['default'])
-                spb.pack(
-                    side=tk.LEFT, fill=tk.X, anchor=tk.W, padx=1, pady=1)
-                self.wdgOptions[name] = {'frm': frm, 'lbl': lbl, 'spb': spb}
-            elif info['dtype'] == tuple:
-                frm = ttk.Frame(self.frmMain)
-                frm.pack(fill=tk.X, padx=1, pady=1)
-                lbl = ttk.Label(frm, text=info['label'])
-                lbl.pack(side=tk.LEFT, fill=tk.X, padx=1, pady=1, expand=True)
-                lst = ttk.Listbox(frm, values=info['values'])
-                lst.set_val(info['default'])
-                lst.pack(
-                    side=tk.LEFT, fill=tk.X, anchor=tk.W, padx=1, pady=1)
-                self.wdgOptions[name] = {'frm': frm, 'lbl': lbl, 'lst': lst}
-
-        self.frmButtons = ttk.Frame(self.frmMain)
-        self.frmButtons.pack(side=tk.BOTTOM, padx=4, pady=4)
-        spacer = ttk.Frame(self.frmButtons)
-        spacer.pack(side=tk.LEFT, anchor='e', expand=True)
-        self.frmSpacers.append(spacer)
-        self.btnOK = ttk.Button(
-            self.frmButtons, text='OK', compound=tk.LEFT,
-            command=self.ok)
-        self.btnOK.pack(side=tk.LEFT, padx=4, pady=4)
-        self.btnReset = ttk.Button(
-            self.frmButtons, text='Reset', compound=tk.LEFT,
-            command=self.reset)
-        self.btnReset.pack(side=tk.LEFT, padx=4, pady=4)
-        self.btnCancel = ttk.Button(
-            self.frmButtons, text='Cancel', compound=tk.LEFT,
-            command=self.cancel)
-        self.btnCancel.pack(side=tk.LEFT, padx=4, pady=4)
-        self.bind('<Return>', self.ok)
-        self.bind('<Escape>', self.cancel)
-
-        center(self, self.parent)
-
-        self.grab_set()
-        self.wait_window(self)
-
-    # --------------------------------
-    def ok(self, event=None):
-        if not self.validate():
-            return
-        self.withdraw()
-        self.update_idletasks()
-        self.apply()
-        self.cancel()
-
-    def cancel(self, event=None):
-        # put focus back to the parent window
-        self.parent.focus_set()
-        self.destroy()
-
-    def reset(self, event=None):
-        for name, info in self.settings.items():
-            if info['dtype'] == bool:
-                self.wdgOptions[name]['chk'].set_val(self.app.cfg[name])
-            elif info['dtype'] == int:
-                self.wdgOptions[name]['spb'].set_val(self.app.cfg[name])
-            elif info['dtype'] == str:
-                self.wdgOptions[name]['ent'].set_val(self.app.cfg[name])
-            elif info['dtype'] == tuple:
-                self.wdgOptions[name]['lst'].set_val(self.app.cfg[name])
-
-    def validate(self, event=None):
-        return True
-
-    def apply(self, event=None):
-        self.result = {}
-        for name, info in self.settings.items():
-            if info['dtype'] == bool:
-                self.result[name] = self.wdgOptions[name]['chk'].get_val()
-            elif info['dtype'] == int:
-                self.result[name] = self.wdgOptions[name]['spb'].get_val()
-            elif info['dtype'] == str:
-                self.result[name] = self.wdgOptions[name]['ent'].get_val()
-            elif info['dtype'] == tuple:
-                self.result[name] = self.wdgOptions[name]['lst'].get_val()
-
-
-# ======================================================================
 class WinMain(ttk.Frame):
     def __init__(self, parent, screen_size, *_args, **_kws):
         super(WinMain, self).__init__(parent)
@@ -764,19 +467,6 @@ class WinMain(ttk.Frame):
 
         self.screen_size = screen_size
 
-        # get_val config data
-        cfg = {}
-        self.cfg = default_config()
-        for dirpath in CFG_DIRPATHS:
-            self.cfg_filepath = os.path.join(dirpath, CFG_FILENAME)
-            cfg = load_config(self.cfg_filepath)
-            if cfg:
-                break
-        if cfg:
-            self.cfg.update(cfg)
-        else:
-            self.cfg_filepath = os.path.join(_PATHS['usr_cfg'], CFG_FILENAME)
-
         # :: initialization of the UI
         ttk.Frame.__init__(self, parent)
         self.parent = parent
@@ -784,11 +474,11 @@ class WinMain(ttk.Frame):
         self.parent.protocol('WM_DELETE_WINDOW', self.exit)
 
         self.style = ttk.Style()
-        # print(self.style.theme_names())
-        self.style.theme_use(self.cfg['gui_style_tk'])
+        self.theme = tk.StringVar(None, 'default')
+        self.style.theme_use(self.theme.get())
         self.pack(fill=tk.BOTH, expand=True)
+        self.win_about = None
 
-        # print(tk.font.families())
         self._make_menu(tk.font.Font(family='lucida', size=10))
         self.menu_font = tk.font.Font(font=self.mnuMain['font'])
 
@@ -808,33 +498,7 @@ class WinMain(ttk.Frame):
             ((self.screen_size.width / self.board.cols / 3)
              + (self.screen_size.height / self.board.rows / 3)) / 2)
 
-    # --------------------------------
-    def _ui_to_cfg(self):
-        """Update the config information from the UI."""
-        cfg = self.cfg
-        return cfg
-
-    def _cfg_to_ui(self):
-        """Update the config information to the UI."""
-        for target in self.cfg['input_paths']:
-            self.lsvInput.add_item(target, unique=True)
-        self.entPath.set_val(self.cfg['output_path'])
-        self.entSubpath.set_val(self.cfg['output_subpath'])
-        self.save_on_exit.set(self.cfg['save_on_exit'])
-        self.style.theme_use(self.cfg['gui_style_tk'])
-        for name, items in self.wdgModules.items():
-            items['chk'].set_val(True if self.cfg[name] else False)
-            items['ent'].set_val(self.cfg[name])
-        for name, items in self.wdgOptions.items():
-            if 'chk' in items:
-                items['chk'].set_val(self.cfg[name])
-            elif 'spb' in items:
-                items['spb'].set_val(self.cfg[name])
-        self.activateModules()
-
     def _make_menu(self, font=None):
-        self.save_on_exit = tk.BooleanVar(value=self.cfg['save_on_exit'])
-
         self.mnuMain = tk.Menu(self.parent, tearoff=False, font=font)
         self.parent.config(menu=self.mnuMain)
 
@@ -909,18 +573,17 @@ class WinMain(ttk.Frame):
         self.mnuSettings.add_separator()
         self.mnuSettings.add_command(
             label='Restore View', underline=4, command=self.restore_view)
-        self.mnuSettings.add_command(
-            label='Advanced', underline=0, command=self.advanced_settings)
-        self.mnuSettings.add_separator()
-        self.mnuSettings.add_command(
-            label='Load Settings', underline=0, command=self.load_settings)
-        self.mnuSettings.add_command(
-            label='Save Settings', underline=0, command=self.save_settings)
-        self.mnuSettings.add_separator()
-        self.mnuSettings.add_checkbutton(
-            label='Save on Exit', underline=2, variable=self.save_on_exit)
-        self.mnuSettings.add_command(
-            label='Reset Defaults', underline=0, command=self.reset_defaults)
+        # themes = list(self.style.theme_names())
+        # if themes:
+        #     self.mnuTtkStyles = tk.Menu(
+        #         self.mnuSettings, tearoff=False, font=font)
+        #     self.mnuSettings.add_cascade(
+        #         label='TTK Themes', underline=0, menu=self.mnuTtkStyles)
+        #     for theme in themes:
+        #         self.mnuTtkStyles.add_radiobutton(
+        #             label=theme.title(), underline=0,
+        #             command=self.restore_view,
+        #             value=theme, variable=self.theme)
 
         self.mnuHelp = tk.Menu(self.mnuMain, tearoff=False, font=font)
         self.mnuMain.add_cascade(
@@ -949,7 +612,7 @@ class WinMain(ttk.Frame):
         if self.computer_plays:
             self.computer_moves()
 
-    def _new_game(self, **_kws):
+    def prepare_game(self, **_kws):
         self.board = make_board(**_kws)
         self.rows.set(self.board.rows)
         self.cols.set(self.board.cols)
@@ -957,13 +620,13 @@ class WinMain(ttk.Frame):
         self.gravity.set(hasattr(self.board, 'has_gravity'))
         self.frmBoard = FrameBoard(self, self.optim_cell_size)
         self.restore_view()
-        self.new_game()
 
     def new_aliased(self, event=None):
         if self.board.is_empty() or messagebox.askokcancel(
                 'Continue', 'This will start a new game. Are you sure?'):
             alias = self.game_alias.get()
-            self._new_game(**ALIASES[alias])
+            self.prepare_game(**ALIASES[alias])
+            self.new_game()
 
     def new_custom(self, event=None):
         if self.board.is_empty() or messagebox.askokcancel(
@@ -988,36 +651,54 @@ class WinMain(ttk.Frame):
                 gravity=gravity if gravity is not None else self.gravity.get())
             alias = guess_alias(**kws)
             self.game_alias.set(alias)
-            self._new_game(**kws)
+            self.prepare_game(**kws)
 
     def load_game(self, event=None):
-        pass
+        filepath = filedialog.askopenfilename(
+            parent=self, title='Open Game File', defaultextension='.pickle',
+            initialdir=PATH['data'],
+            filetypes=[('Python Pickle', '*.pickle')])
+        if os.path.isfile(filepath):
+            data = pickle.load(open(filepath, 'rb'))
+            self.undo_history = data.pop('undo_history')
+            self.redo_history = data.pop('redo_history')
+            self.computer_plays = data.pop('computer_plays')
+            self.prepare_game(**data)
+            for move in self.undo_history:
+                self.board.do_move(move)
+            self.frmBoard.refresh()
 
     def save_game(self, event=None):
-        pass
+        filepath = filedialog.asksaveasfilename(
+            parent=self, title='Save Game File', defaultextension='.pickle',
+            initialdir=PATH['data'],
+            filetypes=[('Python Pickle', '*.pickle')])
+        data = dict(
+            rows=self.rows.get(), cols=self.cols.get(),
+            num_win=self.num_win.get(), gravity=self.gravity.get(),
+            undo_history=self.undo_history, redo_history=self.redo_history,
+            computer_plays=self.computer_plays)
+        pickle.dump(data, open(filepath, 'wb+'))
 
     def exit(self, event=None):
         """Action on Exit."""
         if messagebox.askokcancel('Exit', 'Are you sure you want to exit?'):
-            self.cfg = self._ui_to_cfg()
-            if self.cfg['save_on_exit']:
-                save_config(self.cfg, self.cfg_filepath)
             self.parent.destroy()
 
     def undo_move(self, event=None):
         if self.undo_history:
-            coord = self.undo_history.pop(-1)
-            self.board.undo_move(coord)
-            self.redo_history.append(coord)
+            move = self.undo_history.pop(-1)
+            self.board.undo_move(move)
+            self.redo_history.append(move)
             self.frmBoard.hide_wins()
             self.frmBoard.unfreeze()
             self.frmBoard.refresh()
 
     def redo_move(self, event=None):
         if self.redo_history:
-            coord = self.redo_history.pop(-1)
-            self.board.do_move(coord)
-            self.undo_history.append(coord)
+            move = self.redo_history.pop(-1)
+            self.board.do_move(move)
+            self.undo_history.append(move)
             self.frmBoard.refresh()
             self.check_win()
 
@@ -1042,50 +723,28 @@ class WinMain(ttk.Frame):
             self.ai_timeout.set(ai_timeout)
 
     def about(self, event=None):
-        """Action on About."""
-        self.winAbout = WinAbout(self.parent)
+        self.win_about = WinAbout(self.parent)
 
     def restore_view(self, event=None):
+        self.style.theme_use(self.theme.get())
         new_geometry = Geometry(self.parent.geometry())
         new_geometry.width = int(self.cols.get() * self.optim_cell_size)
         new_geometry.height = int(
             self.rows.get() * self.optim_cell_size
-                   + 2 * self.menu_font.actual()['size'])
+            + 2 * self.menu_font.actual()['size'])
         self.parent.geometry(new_geometry)
-        print(new_geometry)
         center(self.parent, self.screen_size)
-
-    def advanced_settings(self, event=None):
-        self.winSettings = WinSettings(self.parent, self)
-        if self.winSettings.result:
-            self.cfg.update(self.winSettings.result)
-        self._cfg_to_ui()
-        # force resize for redrawing widgets correctly
-        # w, h = self.parent.winfo_width(), self.parent.winfo_height()
-        self.parent.update_idletasks()
-
-    def load_settings(self):
-        self.cfg = load_config(self.cfg_filepath)
-        self._cfg_to_ui()
-
-    def save_settings(self):
-        self.cfg = self._ui_to_cfg()
-        save_config(self.cfg, self.cfg_filepath)
-
-    def reset_defaults(self, event=None):
-        self.cfg = default_config()
-        self._cfg_to_ui()
 
     def computer_moves(self):
         if not self.board.is_full() and self.computer_plays:
-            coord = self.ai_class().get_best_move(
+            move = self.ai_class().get_best_move(
                 self.board,
                 self.ai_timeout.get(), self.ai_method, max_depth=-1,
                 verbose=self.verbose >= D_VERB_LVL)
-            if self.board.do_move(coord):
+            if self.board.do_move(move):
                 self.computer_plays = False
-                self.undo_history.append(coord)
-                if self.redo_history and coord == self.redo_history[-1]:
+                self.undo_history.append(move)
+                if self.redo_history and move == self.redo_history[-1]:
                     self.redo_history.pop()
                 else:
                     self.redo_history = []
@@ -1093,7 +752,6 @@ class WinMain(ttk.Frame):
                 self.check_win()
 
     def check_win(self):
-        ask_new = True
         if self.board.winner(self.board.turn) == self.board.turn:
             self.frmBoard.refresh()
             self.frmBoard.freeze()
@@ -1108,8 +766,8 @@ class WinMain(ttk.Frame):
             text = 'The game ended with a draw!'
             icon = 'question'
         else:
-            ask_new = False
-        if ask_new:
+            title = text = icon = None
+        if title and text and icon:
             answer = messagebox.askquestion(
                 title=title,
                 message='\n\n'.join([text, 'Do you want to play a new game?']),
@@ -1130,7 +788,7 @@ def mnk_game_gui(*_args, **_kws):
 
 if __name__ == '__main__':
     mnk_game_gui(
-        # rows=6, cols=7, num_win=4, gravity=True,
-        rows=3, cols=3, num_win=3, gravity=False,
-        ai_mode='alphabeta', computer_plays=False,
-        ai_timeout=0.5, verbose=VERB_LVL['lowest'])
+        rows=6, cols=7, num_win=4, gravity=True,
+        # rows=3, cols=3, num_win=3, gravity=False,
+        ai_mode='caching', computer_plays=False,
+        ai_timeout=1.0, verbose=VERB_LVL['lowest'])

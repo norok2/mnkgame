@@ -47,14 +47,14 @@ def handle_endgame(
 # ======================================================================
 def handle_move(
         board,
-        coord,
+        move,
         is_computer,
         ask_continue=True,
         pretty=True):
     if is_computer:
-        msg('Computer Move is: ' + str(coord),
+        msg('Computer Move is: ' + str(move),
             fmt='{t.magenta}' if pretty else False)
-    board.do_move(coord)
+    board.do_move(move)
     if board.winner(board.turn) == board.turn:
         result = handle_endgame(
             board,
@@ -106,14 +106,14 @@ def get_human_move(
                 pass
             if (isinstance(choice, int) and hasattr(board, 'has_gravity')) or (
                     isinstance(choice, tuple) and len(choice) == 2
-                    and all(isinstance(coord, int) for coord in choice)
+                    and all(isinstance(move, int) for move in choice)
                     and not hasattr(board, 'has_gravity')):
                 is_valid = \
                     board.is_valid_move(choice) and board.is_avail_move(choice)
             else:
                 is_valid = False
         if not is_valid:
-            msg('W: Invalid input. Must be a coordinate / menu choice.',
+            msg('W: Invalid input. Must be a moveinate / menu choice.',
                 fmt=pretty)
     return choice
 
@@ -161,10 +161,10 @@ def mnk_game_cli(
             elif choice == 's':
                 msg('I: switching sides (computer plays)!', fmt=pretty)
             elif choice == 'h':
-                coord = ai_class().get_best_move(
+                move = ai_class().get_best_move(
                     board, ai_timeout, method, max_depth=-1,
                     verbose=True)
-                msg('I: Best move for computer: ' + str(coord), fmt=pretty)
+                msg('I: Best move for computer: ' + str(move), fmt=pretty)
                 choice = None
         if choice is not None:
             continue_game = handle_move(
