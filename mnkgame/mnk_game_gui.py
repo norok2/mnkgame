@@ -733,7 +733,6 @@ class WinMain(ttk.Frame):
             self.rows.get() * self.optim_cell_size
             + 2 * self.menu_font.actual()['size'])
         self.parent.geometry(new_geometry)
-        center(self.parent, self.screen_size)
 
     def computer_moves(self):
         if not self.board.is_full() and self.computer_plays:
