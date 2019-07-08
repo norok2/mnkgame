@@ -177,7 +177,8 @@ def mnk_game_cli(
                 msg('Load data from: `{}`'.format(filepath))
             elif choice == 's':
                 data = dict(
-                    rows=rows, cols=cols, num_win=num_win, gravity=gravity,
+                    rows=board.rows, cols=board.cols,
+                    num_win=board.num_win, gravity=board.gravity,
                     undo_history=undo_history, redo_history=redo_history,
                     computer_plays=computer_plays)
                 pickle.dump(data, open(filepath, 'wb+'))
@@ -187,11 +188,15 @@ def mnk_game_cli(
                     move = undo_history.pop()
                     redo_history.append(move)
                     board.undo_move(move)
+                else:
+                    msg('W: No moves to undo!')
             elif choice == 'r':
                 if redo_history:
                     move = redo_history.pop()
                     undo_history.append(move)
                     board.do_move(move)
+                else:
+                    msg('W: No moves to redo!')
             elif choice == 'w':
                 msg('I: switching sides (computer plays)!', fmt=pretty)
             elif choice == 'h':
