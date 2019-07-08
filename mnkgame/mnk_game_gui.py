@@ -6,6 +6,13 @@
 import os
 import warnings
 import pickle
+import threading
+import copy
+
+try:
+    import queue
+except ImportError:
+    import Queue as queue
 
 try:
     import tkinter as tk
@@ -106,6 +113,35 @@ def center(target, reference=None):
         geometry = Geometry(geometry)
     target_geometry = Geometry(target.winfo_geometry())
     target.geometry(str(target_geometry.set_to_center(geometry)))
+
+
+# ======================================================================
+class AskAiMove(threading.Thread):
+    def __init__(
+            self,
+            queue_,
+            board,
+            ai_timeout,
+            ai_class,
+            ai_method,
+            callback=None,
+            verbose=D_VERB_LVL):
+        super(AskAiMove, self).__init__()
+        self.queue = queue_
+        self.board = board
+        self.ai_timeout = ai_timeout
+        self.ai_class = ai_class
+        self.ai_method = ai_method
+        self.callback = callback
+        self.verbose = verbose
+
+    def run(self):
+        move = self.ai_class().get_best_move(
+            copy.deepcopy(self.board),
+            self.ai_timeout, self.ai_method, max_depth=-1,
+            callback=self.callback,
+            verbose=self.verbose >= D_VERB_LVL)
+        self.queue.put(move)
 
 
 # ======================================================================
@@ -246,6 +282,7 @@ class FrameBoard(tk.Frame):
             self.rowconfigure(k, weight=1)
         for k in range(self.cols):
             self.columnconfigure(k, weight=1)
+        self.grid_propagate(False)
         self.bind('<Configure>', self.on_resize)
 
     def on_resize(self, event=None):
@@ -275,6 +312,17 @@ class FrameBoard(tk.Frame):
                         and self.cvsMatrix[i, j].content:
                     self.cvsMatrix[i, j].clear()
 
+    def normal(self, event=None):
+        for i in range(self.rows):
+            for j in range(self.cols):
+                self.cvsMatrix[i, j].normal()
+
+    def highlight(self, event=None, extrema=None):
+        if extrema:
+            coords = self.board.extrema_to_moves(*extrema)
+            for (i, j) in coords:
+                self.cvsMatrix[i, j].highlight()
+
     def freeze(self, event=None):
         self.enabled = False
 
@@ -284,14 +332,18 @@ class FrameBoard(tk.Frame):
     def show_wins(self, event=None):
         winning_series = self.board.winning_series()
         for winning_serie in winning_series:
-            coords = self.board.extrema_to_moves(*winning_serie)
-            for (i, j) in coords:
-                self.cvsMatrix[i, j].highlight()
+            self.highlight(event, winning_serie)
 
     def hide_wins(self, event=None):
         for i in range(self.rows):
             for j in range(self.cols):
                 self.cvsMatrix[i, j].normal()
+
+    def highlight_move(self, move):
+        if hasattr(self.board, 'has_gravity'):
+            self.highlight(None, ((0, move), (self.rows - 1, move)))
+        else:
+            self.highlight(None, (move, move))
 
 
 # ======================================================================
@@ -331,6 +383,7 @@ class CanvasCell(tk.Canvas):
 
     def on_enter(self, event=None):
         if self.parent.enabled:
+            self.parent.normal()
             if not hasattr(self.board, 'has_gravity'):
                 self.config(background=self.hover_background)
             else:
@@ -401,6 +454,18 @@ class CanvasCell(tk.Canvas):
 
 
 # ======================================================================
+class StatusBar(tk.Frame):
+    def __init__(self, parent, text):
+        super(StatusBar, self).__init__(parent)
+        self.content = tk.StringVar()
+        self.label = tk.Label(self, textvariable=self.content, anchor=tk.W)
+        self.content.set(text)
+        self.label.pack(expand=True, fill=tk.BOTH, side=tk.BOTTOM)
+        self.pack(fill=tk.X)
+        # self.pack_propagate(False)
+
+
+# ======================================================================
 class WinAbout(tk.Toplevel):
     def __init__(self, parent):
         super(WinAbout, self).__init__(parent)
@@ -409,7 +474,7 @@ class WinAbout(tk.Toplevel):
         self.title('About {}'.format(INFO['name']))
         self.resizable(False, False)
         self.frm = ttk.Frame(self)
-        self.frm.pack(fill=tk.BOTH, expand=True)
+        self.frm.pack(fill=tk.BOTH, expand=False)
         self.frmMain = ttk.Frame(self.frm)
         self.frmMain.pack(fill=tk.BOTH, padx=1, pady=1, expand=True)
 
@@ -464,6 +529,7 @@ class WinMain(ttk.Frame):
         self.computer_plays = self.first_computer_plays
         self.undo_history = []
         self.redo_history = []
+        self.ai_queue = None
 
         self.screen_size = screen_size
 
@@ -481,15 +547,16 @@ class WinMain(ttk.Frame):
 
         self._make_menu(tk.font.Font(family='lucida', size=10))
         self.menu_font = tk.font.Font(font=self.mnuMain['font'])
-
         # :: define UI items
         self.frmBoard = FrameBoard(self, self.optim_cell_size)
 
         self.parent.minsize(
             self.cols.get() * self.optim_cell_size // 5,
             self.rows.get() * self.optim_cell_size // 5
-            + 4 * self.menu_font.actual()['size'])
+            + int(10 * self.menu_font.metrics('linespace')))
 
+        self.statusbar = StatusBar(self.parent, 'Ready.')
+        self.restore_view()
         center(self.parent, self.screen_size)
 
     @property
@@ -681,7 +748,6 @@ class WinMain(ttk.Frame):
         pickle.dump(data, open(filepath, 'wb+'))
 
     def exit(self, event=None):
-        """Action on Exit."""
         if messagebox.askokcancel('Exit', 'Are you sure you want to exit?'):
             self.parent.destroy()
 
@@ -707,8 +773,25 @@ class WinMain(ttk.Frame):
             self.computer_plays = not self.computer_plays
             self.computer_moves()
 
+    def process_hint(self):
+        try:
+            move = self.ai_queue.get(0)
+            self.frmBoard.highlight_move(move)
+            messagebox.showinfo(
+                'Hint', 'Suggested move: {}'.format(move))
+        except queue.Empty:
+            self.parent.after(100, self.process_hint)
+
     def hint(self, event=None):
-        pass
+        def refresh_status(**_kws):
+            self.statusbar.content.set(_kws['feedback'])
+
+        self.ai_queue = queue.Queue()
+        thread = AskAiMove(
+            self.ai_queue, self.board, self.ai_timeout.get(),
+            self.ai_class, self.ai_method, refresh_status, self.verbose)
+        thread.start()
+        self.parent.after(100, self.process_hint)
 
     def change_ai_mode(self, event=None):
         self.ai_class = AI_MODES[self.ai_mode.get()]['ai_class']
@@ -731,15 +814,12 @@ class WinMain(ttk.Frame):
         new_geometry.width = int(self.cols.get() * self.optim_cell_size)
         new_geometry.height = int(
             self.rows.get() * self.optim_cell_size
-            + 2 * self.menu_font.actual()['size'])
+            + 3.5 * self.menu_font.metrics('linespace'))
         self.parent.geometry(new_geometry)
 
-    def computer_moves(self):
-        if not self.board.is_full() and self.computer_plays:
-            move = self.ai_class().get_best_move(
-                self.board,
-                self.ai_timeout.get(), self.ai_method, max_depth=-1,
-                verbose=self.verbose >= D_VERB_LVL)
+    def process_computer_move(self):
+        try:
+            move = self.ai_queue.get(0)
             if self.board.do_move(move):
                 self.computer_plays = False
                 self.undo_history.append(move)
@@ -749,6 +829,23 @@ class WinMain(ttk.Frame):
                     self.redo_history = []
                 self.frmBoard.refresh()
                 self.check_win()
+            self.frmBoard.unfreeze()
+            # self.frmBoard.normal()
+        except queue.Empty:
+            self.parent.after(100, self.process_computer_move)
+
+    def computer_moves(self):
+        def refresh_status(**_kws):
+            self.statusbar.content.set(_kws['feedback'])
+
+        if not self.board.is_full() and self.computer_plays:
+            self.frmBoard.freeze()
+            self.ai_queue = queue.Queue()
+            thread = AskAiMove(
+                self.ai_queue, self.board, self.ai_timeout.get(),
+                self.ai_class, self.ai_method, refresh_status, self.verbose)
+            thread.start()
+            self.parent.after(100, self.process_computer_move)
 
     def check_win(self):
         if self.board.winner(self.board.turn) == self.board.turn:
