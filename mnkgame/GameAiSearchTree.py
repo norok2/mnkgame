@@ -307,18 +307,19 @@ class GameAiSearchTree(GameAi):
                     new_choices.append(move)
             if not np.isnan(val) and new_choices:
                 choices = new_choices
-            if verbose:
-                feedback = ', '.join([
-                    f'Depth: {depth}', f'Best: {best_val}',
-                    f'Move(s): {choices}',
-                    f'Time: {time.time() - depth_clock:.3f}'])
-                print(feedback)
-            if callable(callback):
-                callback(**locals())
             if best_val in (np.inf, -np.inf):
                 break
             if max_duration - (time.time() - clock) < 0.0:
                 break
+            else:
+                if verbose:
+                    feedback = ', '.join([
+                        f'Time: {time.time() - depth_clock:.3f}',
+                        f'Depth: {depth}', f'Best: {best_val}',
+                        f'Move(s): {choices}'])
+                    print(feedback)
+                if callable(callback):
+                    callback(**locals())
         if randomize and len(choices) > 1:
             return random.choice(choices)
         else:
