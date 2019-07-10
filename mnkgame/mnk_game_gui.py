@@ -6,8 +6,6 @@
 import os
 import warnings
 import pickle
-import threading
-import copy
 
 try:
     import queue
@@ -37,7 +35,7 @@ from mnkgame import D_VERB_LVL, VERB_LVL, VERB_LVL_NAMES
 from mnkgame import msg
 from mnkgame import INFO, PATH
 from mnkgame import print_greetings, prettify, MY_GREETINGS
-from mnkgame.util import make_board, guess_alias
+from mnkgame.util import make_board, guess_alias, AskAiMove
 from mnkgame.util import AI_MODES, ALIASES, USER_INTERFACES
 
 
@@ -113,35 +111,6 @@ def center(target, reference=None):
         geometry = Geometry(geometry)
     target_geometry = Geometry(target.winfo_geometry())
     target.geometry(str(target_geometry.set_to_center(geometry)))
-
-
-# ======================================================================
-class AskAiMove(threading.Thread):
-    def __init__(
-            self,
-            queue_,
-            board,
-            ai_timeout,
-            ai_class,
-            ai_method,
-            callback=None,
-            verbose=D_VERB_LVL):
-        super(AskAiMove, self).__init__()
-        self.queue = queue_
-        self.board = board
-        self.ai_timeout = ai_timeout
-        self.ai_class = ai_class
-        self.ai_method = ai_method
-        self.callback = callback
-        self.verbose = verbose
-
-    def run(self):
-        move = self.ai_class().get_best_move(
-            copy.deepcopy(self.board),
-            self.ai_timeout, self.ai_method, max_depth=-1,
-            callback=self.callback,
-            verbose=self.verbose >= D_VERB_LVL)
-        self.queue.put(move)
 
 
 # ======================================================================
@@ -455,10 +424,11 @@ class CanvasCell(tk.Canvas):
 
 # ======================================================================
 class StatusBar(tk.Frame):
-    def __init__(self, parent, text):
+    def __init__(self, parent, text, font='TkDefaultFont'):
         super(StatusBar, self).__init__(parent)
         self.content = tk.StringVar()
-        self.label = tk.Label(self, textvariable=self.content, anchor=tk.W)
+        self.label = tk.Label(
+            self, textvariable=self.content, anchor=tk.W, font=font)
         self.content.set(text)
         self.label.pack(expand=True, fill=tk.BOTH, side=tk.BOTTOM)
         self.pack(fill=tk.X)
@@ -467,7 +437,7 @@ class StatusBar(tk.Frame):
 
 # ======================================================================
 class WinAbout(tk.Toplevel):
-    def __init__(self, parent):
+    def __init__(self, parent, font):
         super(WinAbout, self).__init__(parent)
         self.transient(parent)
         self.parent = parent
@@ -545,17 +515,18 @@ class WinMain(ttk.Frame):
         self.pack(fill=tk.BOTH, expand=True)
         self.win_about = None
 
-        self._make_menu(tk.font.Font(family='lucida', size=10))
-        self.menu_font = tk.font.Font(font=self.mnuMain['font'])
+        self.font = tk.font.Font(family='lucida', size=10)
+        self._make_menu(self.font)
+
         # :: define UI items
         self.frmBoard = FrameBoard(self, self.optim_cell_size)
 
         self.parent.minsize(
             self.cols.get() * self.optim_cell_size // 5,
             self.rows.get() * self.optim_cell_size // 5
-            + int(10 * self.menu_font.metrics('linespace')))
+            + int(10 * self.font.metrics('linespace')))
 
-        self.statusbar = StatusBar(self.parent, 'Ready.')
+        self.statusbar = StatusBar(self.parent, 'Ready.', self.font)
         self.restore_view()
         center(self.parent, self.screen_size)
 
@@ -814,7 +785,7 @@ class WinMain(ttk.Frame):
         new_geometry.width = int(self.cols.get() * self.optim_cell_size)
         new_geometry.height = int(
             self.rows.get() * self.optim_cell_size
-            + 3.5 * self.menu_font.metrics('linespace'))
+            + 3.5 * self.font.metrics('linespace'))
         self.parent.geometry(new_geometry)
 
     def process_computer_move(self):
