@@ -157,6 +157,7 @@ class Geometry(object):
             >>> print(Geometry('1x2+1'))
             1x2+1+0
             >>> print(Geometry('.'))
+            0x0+0+0
         """
         self.width, self.height, self.left, self.top = width, height, left, top
         if isinstance(text, str):
@@ -437,7 +438,7 @@ class StatusBar(tk.Frame):
 
 # ======================================================================
 class WinAbout(tk.Toplevel):
-    def __init__(self, parent, font):
+    def __init__(self, parent):
         super(WinAbout, self).__init__(parent)
         self.transient(parent)
         self.parent = parent
