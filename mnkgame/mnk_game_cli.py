@@ -38,7 +38,7 @@ def handle_endgame(
     msg(text, fmtt=formatting)
     if ask:
         msg('Play a new game ([Y]/n)? ', end='',
-            fmt='{t.bold}' if bool(formatting) else False)
+            fmtt='{t.bold}' if bool(formatting) else False)
         choice = input()
         if choice.strip().lower() == 'n':
             result = False
@@ -56,7 +56,7 @@ def handle_move(
         pretty=True):
     if is_computer:
         msg('Computer Move is: ' + str(move),
-            fmt='{t.magenta}' if pretty else False)
+            fmtt='{t.magenta}' if pretty else False)
     if board.do_move(move):
         undo_history.append(move)
     if board.winner(board.turn) == board.turn:
@@ -93,7 +93,7 @@ def get_human_move(
             + str(sorted(avail_moves)[:max_avail if too_many else None]) \
                 [:-1 if too_many else None]
             + (', ...]' if too_many else ''),
-            fmt='{t.cyan}' if pretty else False)
+            fmtt='{t.cyan}' if pretty else False)
     if show_menu:
         print(prettify('Menu: ' + ', '.join(
             [':'.join(['{o}' + k + '{x}', v])
@@ -118,7 +118,7 @@ def get_human_move(
                 is_valid = False
         if not is_valid:
             msg('W: Invalid input. Must be a moveinate / menu choice.',
-                fmt=pretty)
+                fmtt=pretty)
     return choice
 
 

@@ -126,9 +126,9 @@ def main():
     if args.verbose >= VERB_LVL['debug']:
         arg_parser.print_help()
     msg('\nARGS: ' + str(vars(args)), args.verbose, VERB_LVL['debug'],
-        fmt=not args.ugly)
+        fmtt=not args.ugly)
     msg(__doc__.strip(), args.verbose, VERB_LVL['lower'],
-        fmt=not args.ugly)
+        fmtt=not args.ugly)
 
     kws = vars(args)
     kws.pop('quiet')
@@ -140,7 +140,7 @@ def main():
     if args.verbose >= D_VERB_LVL:
         msg('I: m={rows} (rows),  n={cols} (cols),  k={num_win} (num_win),'
             '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format_map(kws),
-            fmt=not args.ugly)
+            fmtt=not args.ugly)
 
     kws['pretty'] = not kws.pop('ugly')
 
@@ -160,7 +160,7 @@ def main():
 
     exec_time = datetime.datetime.now() - begin_time
     msg('ExecTime: {}'.format(exec_time), args.verbose, VERB_LVL['debug'],
-        fmt=kws['pretty'])
+        fmtt=kws['pretty'])
 
 
 # ======================================================================

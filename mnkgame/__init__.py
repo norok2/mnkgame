@@ -450,7 +450,7 @@ if __name__ == '__main__':
     results_fmt = '{t.bold}{t.red}' \
         if results.failed > 0 else '{t.bold}{t.green}'
     msg('Tests = {results.attempted}; '.format_map(vars()),
-        fmt='{t.bold}{t.cyan}', end='')
+        fmtt='{t.bold}{t.cyan}', end='')
     msg('OK = {results_ok}; '.format_map(vars()),
-        fmt='{t.bold}{t.green}', end='')
+        fmtt='{t.bold}{t.green}', end='')
     msg('Fail = {results.failed}'.format_map(vars()), fmtt=results_fmt)
