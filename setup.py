@@ -143,7 +143,6 @@ setup(
         'setuptools',
         'blessed',
         'asciimatics',
-        'wxpython',
     ],
 
     setup_requires=[

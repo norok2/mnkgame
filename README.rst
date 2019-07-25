@@ -26,7 +26,7 @@ The following user interfaces are provided:
 
  - a Command-Line Interface (CLI) - with optional coloring from `blessed <https://pypi.python.org/pypi/blessed>`__ / `blessings <https://pypi.python.org/pypi/blessings>`__.
  - a Text User Interface (TUI) - implemented with `asciimatics <https://pypi.python.org/pypi/asciimatics>`__.
- - a Graphical User Interface (GUI) - powered by `wxPython <https://www.wxpython.org/>`__.
+ - a Graphical User Interface (GUI) - implemented with `tkinter <https://docs.python.org/3/library/tkinter.html>`__.
 
 For a more comprehensive list of changes see ``CHANGELOG.rst`` (automatically
 generated from the version control system).
