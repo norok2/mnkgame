@@ -93,7 +93,7 @@ def fix_version(
 setup(
     name=NAME.lower(),
 
-    description='Create/manipulate N-dimensional raster geometries.',
+    description='Library and user interfaces for (m,n,k)+g?-games.',
     long_description=LONG_DESCRIPTION_TEXT,
 
     # use_scm_version=True,
