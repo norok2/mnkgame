@@ -319,7 +319,7 @@ class GameAiSearchTree(GameAi):
                         f'Move(s): {choices}'])
                     print(feedback)
                 if callable(callback):
-                    callback(**locals())
+                    callback(**vars())
         if randomize and len(choices) > 1:
             return random.choice(choices)
         else:

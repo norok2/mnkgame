@@ -197,17 +197,17 @@ def msg(
         text,
         verb_lvl=D_VERB_LVL,
         verb_threshold=D_VERB_LVL,
-        fmt=True,
+        fmtt=True,
         *_args,
         **_kws):
     """
     Display a feedback message to the standard output.
 
     Args:
-        text (str|Any): Message to display or object with `__repr__`.
+        text (str|Any): Message to display or object with `__str__`.
         verb_lvl (int): Current level of verbosity.
         verb_threshold (int): Threshold level of verbosity.
-        fmt (str|bool|None): Format of the message (if `blessed` supported).
+        fmtt (str|bool|None): Format of the message (if `blessed` supported).
             If True, a standard formatting is used.
             If False, empty string or None, no formatting is applied.
             If str, the specified formatting is used.
@@ -226,18 +226,28 @@ def msg(
         >>> msg(s, VERB_LVL['medium'], VERB_LVL['low'])
         Hello World!
         >>> msg(s, VERB_LVL['low'], VERB_LVL['medium'])  # no output
-        >>> msg(s, fmt='{t.green}')  # if ANSI Terminal, green text
+        >>> msg(s, fmtt='{t.green}')  # if ANSI Terminal, green text
         Hello World!
-        >>> msg('   :  a b c', fmt='{t.red}{}')  # if ANSI Terminal, red text
+        >>> msg('   :  a b c', fmtt='{t.red}{}')  # if ANSI Terminal,
+        red text
            :  a b c
-        >>> msg(' : a b c', fmt='cyan')  # if ANSI Terminal, cyan text
+        >>> msg(' : a b c', fmtt='cyan')  # if ANSI Terminal, cyan text
          : a b c
     """
     if verb_lvl >= verb_threshold and text is not None:
+        # if blessed/blessings is not present, no coloring
+        try:
+            from blessed import Terminal
+        except ImportError:
+            try:
+                from blessings import Terminal
+            except ImportError:
+                Terminal = False
+
         t = Terminal() if callable(Terminal) else None
-        if t is not None and fmt:
+        if t is not None and fmtt:
             text = str(text)
-            if fmt is True:
+            if fmtt is True:
                 if VERB_LVL['low'] < verb_threshold <= VERB_LVL['medium']:
                     e = t.cyan
                 elif VERB_LVL['medium'] < verb_threshold < VERB_LVL['debug']:
@@ -265,11 +275,11 @@ def msg(
                     t0=txt0, t1=txt1, t2=txt2, n=t.normal)
                 text = '{t0}{e1}{t1}{n}{e2}{t2}{n}'.format_map(txt_kws)
             else:
-                if 't.' not in fmt:
-                    fmt = '{{t.{}}}'.format(fmt)
-                if '{}' not in fmt:
-                    fmt += '{}'
-                text = fmt.format(text, t=t) + t.normal
+                if 't.' not in fmtt:
+                    fmtt = '{{t.{}}}'.format(fmtt)
+                if '{}' not in fmtt:
+                    fmtt += '{}'
+                text = fmtt.format(text, t=t) + t.normal
         print(text, *_args, **_kws)
 
 
@@ -434,13 +444,13 @@ if __name__ == '__main__':
     import doctest  # Test interactive Python examples
 
     msg(__doc__.strip())
-    msg('Running `doctest.testmod()`... ', fmt='{t.bold}')
+    msg('Running `doctest.testmod()`... ', fmtt='{t.bold}')
     results = doctest.testmod()  # RUN TESTS HERE!
     results_ok = results.attempted - results.failed
     results_fmt = '{t.bold}{t.red}' \
         if results.failed > 0 else '{t.bold}{t.green}'
-    msg('Tests = {results.attempted}; '.format(**locals()),
+    msg('Tests = {results.attempted}; '.format_map(vars()),
         fmt='{t.bold}{t.cyan}', end='')
-    msg('OK = {results_ok}; '.format(**locals()),
+    msg('OK = {results_ok}; '.format_map(vars()),
         fmt='{t.bold}{t.green}', end='')
-    msg('Fail = {results.failed}'.format(**locals()), fmt=results_fmt)
+    msg('Fail = {results.failed}'.format_map(vars()), fmtt=results_fmt)

@@ -31,14 +31,14 @@ def handle_endgame(
         board,
         text,
         ask,
-        fmt):
+        formatting):
     result = True
-    print('\n' + colorized_board(board, bool(fmt)), sep='')
+    print('\n' + colorized_board(board, bool(formatting)), sep='')
     board.reset()
-    msg(text, fmt=fmt)
+    msg(text, fmtt=formatting)
     if ask:
         msg('Play a new game ([Y]/n)? ', end='',
-            fmt='{t.bold}' if bool(fmt) else False)
+            fmt='{t.bold}' if bool(formatting) else False)
         choice = input()
         if choice.strip().lower() == 'n':
             result = False
@@ -99,7 +99,7 @@ def get_human_move(
             [':'.join(['{o}' + k + '{x}', v])
              for k, v in menu_choices.items()]), pretty=pretty))
     while not is_valid:
-        msg(' > ', end='', fmt='{t.bold}' if pretty else False)
+        msg(' > ', end='', fmtt='{t.bold}' if pretty else False)
         choice = input().strip().lower()
         if choice in menu_choices:
             is_valid = True
@@ -162,7 +162,7 @@ def mnk_game_cli(
             if choice == 'q':
                 break
             elif choice == 'n':
-                msg('I: New game started!', fmt=pretty)
+                msg('I: New game started!', fmtt=pretty)
                 first_computer_plays = not first_computer_plays
                 computer_plays = first_computer_plays
                 board.reset()
@@ -198,12 +198,12 @@ def mnk_game_cli(
                 else:
                     msg('W: No moves to redo!')
             elif choice == 'w':
-                msg('I: switching sides (computer plays)!', fmt=pretty)
+                msg('I: switching sides (computer plays)!', fmtt=pretty)
             elif choice == 'h':
                 move = ai_class().get_best_move(
                     board, ai_timeout, ai_method, max_depth=-1,
                     verbose=True)
-                msg('I: Best move for computer: ' + str(move), fmt=pretty)
+                msg('I: Best move for computer: ' + str(move), fmtt=pretty)
                 choice = None
         if not isinstance(choice, str) or choice not in 'lsur':
             continue_game = handle_move(

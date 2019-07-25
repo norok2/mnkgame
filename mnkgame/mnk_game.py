@@ -139,7 +139,7 @@ def main():
 
     if args.verbose >= D_VERB_LVL:
         msg('I: m={rows} (rows),  n={cols} (cols),  k={num_win} (num_win),'
-            '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format(**kws),
+            '  g={gravity} (gravity)\n   ai_mode={ai_mode}'.format_map(kws),
             fmt=not args.ugly)
 
     kws['pretty'] = not kws.pop('ugly')

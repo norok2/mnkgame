@@ -187,7 +187,7 @@ class Geometry(object):
             yield k, v
 
     def __str__(self):
-        return '{w:d}x{h:d}+{l:d}+{t:d}'.format(**dict(self.items()))
+        return '{w:d}x{h:d}+{l:d}+{t:d}'.format_map(dict(self.items()))
 
     def __repr__(self):
         return ', '.join([k + '=' + str(v) for k, v in self])

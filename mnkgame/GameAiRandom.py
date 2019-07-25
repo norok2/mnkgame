@@ -42,5 +42,5 @@ class GameAiRandom(GameAi):
                 f'Method: {method}', f'Best: {choice}', f'Move(s): {choices}'])
             print(feedback)
         if callable(callback):
-            callback(**locals())
+            callback(**vars())
         return choice
