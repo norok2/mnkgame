@@ -228,8 +228,7 @@ def msg(
         >>> msg(s, VERB_LVL['low'], VERB_LVL['medium'])  # no output
         >>> msg(s, fmtt='{t.green}')  # if ANSI Terminal, green text
         Hello World!
-        >>> msg('   :  a b c', fmtt='{t.red}{}')  # if ANSI Terminal,
-        red text
+        >>> msg('   :  a b c', fmtt='{t.red}{}')  # if ANSI Terminal, red text
            :  a b c
         >>> msg(' : a b c', fmtt='cyan')  # if ANSI Terminal, cyan text
          : a b c
