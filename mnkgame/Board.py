@@ -161,13 +161,13 @@ class Board:
     def do_moves(self, moves, reset=True):
         if reset:
             self.reset()
-        result = all([self.do_move(move) for move in moves])
+        result = all(self.do_move(move) for move in moves)
         if not result:
             self.undo_moves(moves[::-1])
         return result
 
     def undo_moves(self, moves):
-        return all([self.undo_move(move) for move in moves])
+        return all(self.undo_move(move) for move in moves)
 
     def num_moves(self):
         return int(np.sum(self._matrix != self.EMPTY))
