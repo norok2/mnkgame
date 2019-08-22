@@ -262,7 +262,7 @@ def msg(
                 else:
                     e = t.white
                 # first non-whitespace word
-                txt1 = text.split(None, 1)[0] if len(text) > 0 else ''
+                txt1 = text.split(None, 1)[0] if len(text.strip()) > 0 else ''
                 # initial whitespaces
                 n = text.find(txt1)
                 txt0 = text[:n]
