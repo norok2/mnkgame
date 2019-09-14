@@ -92,13 +92,13 @@ which produces:
 Installation
 ------------
 
-The recommended way of installing the software is through `PyPI <https://pypi.python.org/pypi/mnk_game>`__:
+The recommended way of installing the software is through `PyPI <https://pypi.python.org/pypi/mnkgame>`__:
 
 .. code:: bash
 
     $ pip install mnkgame
 
-Alternatively, you can clone the source repository from `Bitbucket <https://bitbucket.org/norok2/mnk-game>`__:
+Alternatively, you can clone the source repository from `Bitbucket <https://bitbucket.org/norok2/mnkgame>`__:
 
 .. code:: bash
 
