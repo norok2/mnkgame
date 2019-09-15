@@ -28,15 +28,16 @@ def negamax(
     clock = time.time()
     if max_duration < 0:
         return np.nan
-    if game.winner(game.turn) == game.turn:
-        return -game.win_score
     elif depth == 0 or game.is_full():
         return -game.get_score()
     best_value = -game.win_score
     for move in game.sorted_moves():
         game.do_move(move)
-        value = -negamax(
-            game, depth - 1, max_duration - (time.time() - clock))
+        if game.winning_move(move) == game.turn:
+            value = game.win_score
+        else:
+            value = -negamax(
+                game, depth - 1, max_duration - (time.time() - clock))
         game.undo_move(move)
         # best_value = max(value, best_value)
         if value > best_value:
@@ -54,16 +55,17 @@ def negamax_alphabeta(
     clock = time.time()
     if max_duration < 0.0:
         return np.nan
-    if game.winner(game.turn) == game.turn:
-        return -game.win_score
     elif depth == 0 or game.is_full():
         return -game.get_score()
     best_value = -game.win_score
     for move in game.sorted_moves():
         game.do_move(move)
-        value = -negamax_alphabeta(
-            game, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta, soft)
+        if game.winning_move(move) == game.turn:
+            value = game.win_score
+        else:
+            value = -negamax_alphabeta(
+                game, depth - 1, max_duration - (time.time() - clock),
+                -beta if soft else alpha, -alpha if soft else beta, soft)
         game.undo_move(move)
         # best_value = max(value, best_value)
         # alpha = max(best_value, alpha)
@@ -99,9 +101,12 @@ def negamax_alphabeta_caching(
     best_value = -game.win_score
     for move in game.sorted_moves():
         game.do_move(move)
-        value = -negamax_alphabeta_caching(
-            game, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta, soft, cache)
+        if game.winning_move(move) == game.turn:
+            value = game.win_score
+        else:
+            value = -negamax_alphabeta_caching(
+                game, depth - 1, max_duration - (time.time() - clock),
+                -beta if soft else alpha, -alpha if soft else beta, soft, cache)
         game.undo_move(move)
         # best_value = max(value, best_value)
         # alpha = max(best_value, alpha)
@@ -132,7 +137,9 @@ def negascout(
     best_value = -game.win_score
     for move in game.sorted_moves():
         game.do_move(move)
-        if window > 0:
+        if game.winning_move(move) == game.turn:
+            value = game.win_score
+        elif window > 0:
             value = -negascout(
                 game, depth - 1, max_duration - (time.time() - clock),
                 -beta if soft else alpha, -alpha if soft else beta,
@@ -184,17 +191,18 @@ def negamax_alphabeta_hashing(
                     beta = hash_value
                 if alpha >= beta:
                     return hash_value
-    if game.winner(game.turn) == game.turn:
-        return -game.win_score
     if depth == 0 or game.is_full():
         return game.get_score()
     best_value = -game.win_score
     for move in game.sorted_moves():
         game.do_move(move)
-        value = -negamax_alphabeta_hashing(
-            game, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta,
-            soft, hash_)
+        if game.winning_move(move) == game.turn:
+            value = game.win_score
+        else:
+            value = -negamax_alphabeta_hashing(
+                game, depth - 1, max_duration - (time.time() - clock),
+                -beta if soft else alpha, -alpha if soft else beta,
+                soft, hash_)
         game.undo_move(move)
         # best_value = max(value, best_value)
         # alpha = max(best_value, alpha)
@@ -226,16 +234,17 @@ def negamax_alphabeta_jit(
     clock = time.time()
     if max_duration < 0.0:
         return np.nan
-    if game.winner(game.turn) == game.turn:
-        return -game.win_score
     elif depth == 0 or game.is_full():
         return -game.get_score()
     best_value = -game.win_score
     for move in game.sorted_moves():
         game.do_move(move)
-        value = -negamax_alphabeta_jit(
-            game, depth - 1, max_duration - (time.time() - clock),
-            -beta if soft else alpha, -alpha if soft else beta, soft)
+        if game.winning_move(move) == game.turn:
+            value = game.win_score
+        else:
+            value = -negamax_alphabeta_jit(
+                game, depth - 1, max_duration - (time.time() - clock),
+                -beta if soft else alpha, -alpha if soft else beta, soft)
         game.undo_move(move)
         # best_value = max(value, best_value)
         # alpha = max(best_value, alpha)

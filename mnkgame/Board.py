@@ -125,8 +125,8 @@ class Board:
     def is_full(self):
         return not np.any(self._matrix == self.EMPTY)
 
-    def is_valid_move(self, move):
-        return 0 <= move[0] < self._rows and 0 <= move[1] < self._cols
+    def is_valid_move(self, coord):
+        return 0 <= coord[0] < self._rows and 0 <= coord[1] < self._cols
 
     def is_avail_move(self, coord):
         return self._matrix[coord] == self.EMPTY
@@ -150,24 +150,24 @@ class Board:
         else:
             return False
 
-    def undo_move(self, move):
-        if self.is_valid_move(move) and self._matrix[move] != self.EMPTY:
+    def undo_move(self, coord):
+        if self.is_valid_move(coord) and self._matrix[coord] != self.EMPTY:
             self._turn = self.prev_turn()
-            self._matrix[move] = self.EMPTY
+            self._matrix[coord] = self.EMPTY
             return True
         else:
             return False
 
-    def do_moves(self, moves, reset=True):
+    def do_moves(self, coords, reset=True):
         if reset:
             self.reset()
-        result = all(self.do_move(move) for move in moves)
+        result = all(self.do_move(coord) for coord in coords)
         if not result:
-            self.undo_moves(moves[::-1])
+            self.undo_moves(coords[::-1])
         return result
 
-    def undo_moves(self, moves):
-        return all(self.undo_move(move) for move in moves)
+    def undo_moves(self, coords):
+        return all(self.undo_move(coord) for coord in coords)
 
     def num_moves(self):
         return int(np.sum(self._matrix != self.EMPTY))
@@ -186,9 +186,8 @@ class Board:
                     break
             return result
         else:
-            matrix = self._matrix
-            rows, cols = self._rows, self._cols
-            num_win = self._num_win
+            rows, cols, num_win, matrix = \
+                self._rows, self._cols, self._num_win, self._matrix
             # check diagonals
             for i in range(rows - num_win + 1):
                 for j in range(cols - num_win + 1):
@@ -208,6 +207,31 @@ class Board:
                         return turn
             return self.EMPTY
 
+    def winning_move(self, coord):
+        rows, cols, num_win, matrix = \
+            self._rows, self._cols, self._num_win, self._matrix
+        turn = matrix[coord]
+        row, col = coord
+        min_row = max(0, row - num_win)
+        max_row = min(rows - num_win, row)
+        min_col = max(0, col - num_win)
+        max_col = min(cols - num_win, col)
+        # check diagonals
+        for i in range(min_row, max_row + 1):
+            for j in range(min_col, max_col + 1):
+                square = matrix[i:i + num_win, j:j + num_win]
+                if np.all(np.diag(np.fliplr(square)) == turn) \
+                        or np.all(np.diag(square) == turn):
+                    return turn
+        # check horizontal
+        for j in range(min_col, max_col + 1):
+            if np.all(matrix[row, j:j + num_win] == turn):
+                return turn
+        # check vertical
+        for i in range(min_row, max_row + 1):
+            if np.all(matrix[i:i + num_win, col] == turn):
+                return turn
+
     def winning_series(self, turn=None):
         if self.is_empty():
             return []
@@ -220,9 +244,8 @@ class Board:
             return result
         else:
             result = []
-            matrix = self._matrix
-            rows, cols = self._rows, self._cols
-            num_win = self._num_win
+            rows, cols, num_win, matrix = \
+                self._rows, self._cols, self._num_win, self._matrix
             # check diagonals
             for i in range(rows - num_win + 1):
                 for j in range(cols - num_win + 1):
@@ -254,10 +277,10 @@ class Board:
         diff = tuple(y - x for x, y in zip(begin, end))
         result = []
         if abs(diff[0]) == abs(diff[1]) or diff[0] == 0 or diff[1] == 0:
-            move = begin
+            coord = begin
             for _ in range(max(abs(x) for x in diff) + 1):
-                result.append(move)
-                move = tuple(
+                result.append(coord)
+                coord = tuple(
                     x + (1 if d > 0 else -1 if d < 0 else 0)
-                    for x, d in zip(move, diff))
+                    for x, d in zip(coord, diff))
         return result
