@@ -698,7 +698,8 @@ class WinMain(ttk.Frame):
             initialdir=PATH['data'],
             filetypes=[('Python Pickle', '*.pickle')])
         if os.path.isfile(filepath):
-            data = pickle.load(open(filepath, 'rb'))
+            with open(filepath, 'rb') as file_obj:
+                data = pickle.load(file_obj)
             self.undo_history = data.pop('undo_history')
             self.redo_history = data.pop('redo_history')
             self.computer_plays = data.pop('computer_plays')

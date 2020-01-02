@@ -167,7 +167,8 @@ def mnk_game_cli(
                 computer_plays = first_computer_plays
                 board.reset()
             elif choice == 'l':
-                data = pickle.load(open(filepath, 'rb'))
+                with open(filepath, 'rb') as file_obj:
+                    data = pickle.load(file_obj)
                 undo_history = data.pop('undo_history')
                 redo_history = data.pop('redo_history')
                 computer_plays = data.pop('computer_plays')
