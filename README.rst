@@ -98,11 +98,11 @@ The recommended way of installing the software is through `PyPI <https://pypi.py
 
     $ pip install mnkgame
 
-Alternatively, you can clone the source repository from `Bitbucket <https://bitbucket.org/norok2/mnkgame>`__:
+Alternatively, you can clone the source repository from `GitHub <https://github.com/norok2/mnkgame>`__:
 
 .. code:: bash
 
-    $ git clone git@bitbucket.org:norok2/mnkgame.git
+    $ git clone git@github.com:norok2/mnkgame.git
     $ cd mnkgame
     $ pip install -e .
 
